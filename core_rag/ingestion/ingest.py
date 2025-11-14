@@ -16,7 +16,7 @@ from ..utils.ollama_api import get_ollama_api
 from ..utils.text_preprocessing import preprocess_for_embedding
 from .content_extract import extract_content
 from .chunking import AdvancedChunker
-from .edit_metadata import extract_metadata_from_path
+from .edit_metadata import MetadataExtractor
 
 
 class UnifiedIngestion:
@@ -30,6 +30,7 @@ class UnifiedIngestion:
         self.embedding_model = self.config['embedding']['model']
         self.chunker = AdvancedChunker(self.config.get('chunker', {}))
         self.ollama_api = get_ollama_api()
+        self.metadata_extractor = MetadataExtractor()
         
         self._ensure_collections_exist()
     
@@ -278,7 +279,7 @@ class UnifiedIngestion:
         return section_name
     
     def _extract_metadata_from_path(self, file_path: str) -> Dict:
-        return extract_metadata_from_path(file_path)
+        return self.metadata_extractor.extract_metadata_from_path(file_path)
     
     def _get_collection_name_from_document_type(self, document_type: str) -> str:
         if 'document_type_mapping' in self.config.get('domain', {}):

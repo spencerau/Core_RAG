@@ -1,5 +1,6 @@
-from .ingest import DocumentIngestor
+from .ingest import UnifiedIngestion
 from .edit_metadata import MetadataExtractor
-from .chunking import chunk_text
+from .chunking import AdvancedChunker
+from .content_extract import extract_content
 
-__all__ = ['DocumentIngestor', 'MetadataExtractor', 'chunk_text']
+__all__ = ['UnifiedIngestion', 'MetadataExtractor', 'AdvancedChunker', 'extract_content']
