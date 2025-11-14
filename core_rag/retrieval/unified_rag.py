@@ -1,6 +1,7 @@
 import os
 import sys
 from typing import List, Dict, Any, Optional
+from textwrap import dedent
 from qdrant_client import QdrantClient
 from qdrant_client.models import Filter, FieldCondition, MatchValue
 
@@ -277,7 +278,21 @@ class UnifiedRAG:
     
     def answer_question(self, query: str, conversation_history: List[Dict] = None,
                        user_context: Dict = None, stream: bool = False,
-                       selected_collections: List[str] = None) -> Any:
+                       selected_collections: List[str] = None,
+                       top_k: int = None,
+                       enable_thinking: bool = True,
+                       show_thinking: bool = False,
+                       enable_reranking: bool = None,
+                       return_debug_info: bool = False) -> Any:
+        
+        debug_info = {
+            'query': query,
+            'collections_searched': [],
+            'total_results': 0,
+            'reranking_enabled': False,
+            'thinking_enabled': enable_thinking,
+            'top_k_used': top_k
+        }
         
         if self.query_router and not selected_collections:
             route_result = self.query_router.route_query(
@@ -285,38 +300,103 @@ class UnifiedRAG:
             )
             collection_names = route_result['collections']
             token_allocation = route_result['token_allocation']
+            debug_info['routing_used'] = True
+            debug_info['token_allocation'] = token_allocation
         else:
             collection_names = selected_collections or list(self.collections.keys())
             token_allocation = self.config.get('llm', {}).get('default_tokens', 600)
+            debug_info['routing_used'] = False
+            debug_info['token_allocation'] = token_allocation
+        
+        debug_info['collections_searched'] = collection_names
+        
+        if top_k is None:
+            top_k = self.config.get('rag', {}).get('top_k', 20)
+        debug_info['top_k_used'] = top_k
         
         all_results = self.search_multiple_collections(query, collection_names, user_context)
+        debug_info['total_results'] = len(all_results)
         
         if not all_results:
             no_results_msg = "I couldn't find relevant information to answer your question."
+            debug_info['error'] = 'no_results'
             if stream:
                 def error_stream():
                     yield no_results_msg
-                return error_stream(), no_results_msg, []
-            return no_results_msg, no_results_msg, []
+                if return_debug_info:
+                    return error_stream(), [], debug_info
+                return error_stream()
+            if return_debug_info:
+                return no_results_msg, [], debug_info
+            return no_results_msg
         
-        reranker = self._get_reranker()
-        reranked_chunks = (
-            reranker.rerank(query, all_results, top_k=20) if reranker
-            else all_results[:20]
-        )
+        if enable_reranking is None:
+            enable_reranking = not self.rerank_disabled
+        
+        if enable_reranking:
+            reranker = self._get_reranker()
+            if reranker:
+                reranked_chunks = reranker.rerank(query, all_results, top_k=top_k)
+                debug_info['reranking_enabled'] = True
+            else:
+                reranked_chunks = all_results[:top_k]
+                debug_info['reranking_enabled'] = False
+        else:
+            reranked_chunks = all_results[:top_k]
+            debug_info['reranking_enabled'] = False
+        
+        debug_info['chunks_used'] = len(reranked_chunks)
         
         context = self._format_context(reranked_chunks)
-        prompt = f"Context:\n{context}\n\nQuestion: {query}\n\nAnswer:"
+        
+        if enable_thinking and show_thinking:
+            prompt = dedent(f"""
+                Context:
+                {context}
+                
+                Question: {query}
+                
+                Please think through your answer step by step, then provide your final response.
+                
+                Thinking: [Show your reasoning process here]
+                
+                Answer: [Provide your final answer here]
+            """).strip()
+        elif enable_thinking:
+            prompt = dedent(f"""
+                Context:
+                {context}
+                
+                Question: {query}
+                
+                Think through your answer carefully using the provided context, then provide a clear and concise response.
+                
+                Answer:
+            """).strip()
+        else:
+            prompt = dedent(f"""
+                Context:
+                {context}
+                
+                Question: {query}
+                
+                Answer:
+            """).strip()
+        
+        debug_info['prompt_length'] = len(prompt)
         
         if stream:
-            return (
-                self._get_llm_response_stream(prompt, conversation_history, token_allocation),
-                context,
-                reranked_chunks
-            )
+            stream_gen = self._get_llm_response_stream(prompt, conversation_history, token_allocation)
+            if return_debug_info:
+                return stream_gen, reranked_chunks, debug_info
+            return stream_gen
         
         answer = self._get_llm_response(prompt, conversation_history, token_allocation)
-        return answer, context, reranked_chunks
+        debug_info['answer_length'] = len(answer)
+        
+        if return_debug_info:
+            return answer, reranked_chunks, debug_info
+        return answer
     
     def get_collection_stats(self, collection_name: str) -> Dict:
         try:
