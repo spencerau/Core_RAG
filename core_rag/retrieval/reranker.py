@@ -2,7 +2,7 @@ import os
 import math
 import numpy as np
 from typing import List, Dict, Any
-from utils.config_loader import load_config
+from ..utils.config_loader import load_config
 
 
 class BGEReranker:

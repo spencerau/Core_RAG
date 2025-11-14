@@ -6,15 +6,15 @@ from qdrant_client.models import Filter, FieldCondition, MatchValue
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from utils.config_loader import load_config
-from utils.ollama_api import get_ollama_api
-from utils.text_preprocessing import preprocess_for_embedding
-from retrieval.bm25 import BM25Retriever
-from retrieval.fusion import HybridRetriever
-from retrieval.reranker import BGEReranker
+from ..utils.config_loader import load_config
+from ..utils.ollama_api import get_ollama_api
+from ..utils.text_preprocessing import preprocess_for_embedding
+from .bm25 import BM25Retriever
+from .fusion import HybridRetriever
+from .reranker import BGEReranker
 
 try:
-    from retrieval.query_router import QueryRouter
+    from .query_router import QueryRouter
     QUERY_ROUTER_IMPORT_ERROR = None
 except ImportError as import_error:
     QueryRouter = None

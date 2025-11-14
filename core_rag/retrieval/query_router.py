@@ -5,7 +5,7 @@ from textwrap import dedent
 import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-from utils.config_loader import load_config
+from ..utils.config_loader import load_config
 
 
 class QueryRouter:

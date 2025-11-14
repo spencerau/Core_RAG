@@ -5,7 +5,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from qdrant_client import QdrantClient
-from utils.config_loader import load_config
+from .config_loader import load_config
 
 
 def clean_all_collections(force=False):

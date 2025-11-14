@@ -11,12 +11,12 @@ import uuid
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from utils.config_loader import load_config
-from utils.ollama_api import get_ollama_api
-from utils.text_preprocessing import preprocess_for_embedding
-from ingestion.content_extract import extract_content
-from ingestion.chunking import AdvancedChunker
-from ingestion.edit_metadata import extract_metadata_from_path
+from ..utils.config_loader import load_config
+from ..utils.ollama_api import get_ollama_api
+from ..utils.text_preprocessing import preprocess_for_embedding
+from .content_extract import extract_content
+from .chunking import AdvancedChunker
+from .edit_metadata import extract_metadata_from_path
 
 
 class UnifiedIngestion:

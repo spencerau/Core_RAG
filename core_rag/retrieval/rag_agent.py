@@ -1,4 +1,4 @@
-from utils.config_loader import load_config
+from ..utils.config_loader import load_config
 from .reranker import BGEReranker
 from .unified_rag import UnifiedRAG
 from typing import Dict

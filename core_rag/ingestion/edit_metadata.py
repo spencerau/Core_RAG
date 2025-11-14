@@ -6,7 +6,7 @@ from pathlib import Path
 from datetime import datetime
 import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from utils.config_loader import load_config
+from ..utils.config_loader import load_config
 
 
 class MetadataExtractor:
