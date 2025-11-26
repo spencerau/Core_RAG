@@ -28,14 +28,14 @@ def load_config(config_name=None):
         with open(config_path, 'r') as file:
             config = yaml.safe_load(file)
         
-        print(f"Loaded config: {config_path}")
+        # print(f"Loaded config: {config_path}")
         
         local_config_path = os.path.join(project_root, "configs", "config.local.yaml")
         if os.path.exists(local_config_path):
             with open(local_config_path, 'r') as file:
                 local_config = yaml.safe_load(file)
                 config = merge_configs(config, local_config)
-                print(f"Loaded local config overrides from {local_config_path}")
+                # print(f"Loaded local config overrides from {local_config_path}")
         
         if 'QDRANT_HOST' in os.environ:
             config['qdrant']['host'] = os.environ['QDRANT_HOST']
