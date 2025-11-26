@@ -133,9 +133,9 @@ class UnifiedRAG:
         filter_obj = self._build_filter(user_context, document_type)
         collection = self.collections.get(collection_name, collection_name)
         
-        results = self.client.search(
+        results = self.client.query_points(
             collection_name=collection,
-            query_vector=query_vector,
+            query=query_vector,
             limit=top_k,
             query_filter=filter_obj
         )
