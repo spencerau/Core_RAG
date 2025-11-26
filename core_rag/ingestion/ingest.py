@@ -328,7 +328,7 @@ class UnifiedIngestion:
                 
                 chunk_text = item['text']
                 embedding = self._get_embedding(chunk_text)
-                if embedding is None:
+                if not embedding:
                     continue
                 
                 combined_metadata['chunk_text'] = chunk_text
@@ -386,7 +386,7 @@ class UnifiedIngestion:
             points = []
             for i, (chunk_text, chunk_metadata) in enumerate(chunk_data):
                 embedding = self._get_embedding(chunk_text)
-                if embedding is None:
+                if not embedding:
                     continue
                 
                 chunk_metadata['chunk_text'] = chunk_text
