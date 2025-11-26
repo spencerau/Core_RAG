@@ -307,7 +307,6 @@ class UnifiedIngestion:
                 json_data = json.load(f)
             
             file_metadata = self._extract_metadata_from_path(file_path)
-            
             content_items = self._extract_json_content_for_embedding(json_data)
             
             if not content_items:
@@ -316,7 +315,9 @@ class UnifiedIngestion:
             
             collection_name = self._get_collection_name_from_document_type(file_metadata['DocumentType'])
             
+            MAX_CHUNK_SIZE = 2000
             points = []
+            
             for item in content_items:
                 combined_metadata = {
                     **file_metadata,
@@ -327,19 +328,35 @@ class UnifiedIngestion:
                 }
                 
                 chunk_text = item['text']
-                embedding = self._get_embedding(chunk_text)
-                if not embedding:
-                    continue
                 
-                combined_metadata['chunk_text'] = chunk_text
-                combined_metadata['total_chunks'] = 1
-                
-                point = PointStruct(
-                    id=str(uuid.uuid4()),
-                    vector=embedding,
-                    payload=combined_metadata
-                )
-                points.append(point)
+                if len(chunk_text) > MAX_CHUNK_SIZE:
+                    chunk_data = self._chunk_text_with_metadata(chunk_text, combined_metadata)
+                    for sub_chunk_text, sub_chunk_metadata in chunk_data:
+                        embedding = self._get_embedding(sub_chunk_text)
+                        if not embedding:
+                            continue
+                        
+                        sub_chunk_metadata['chunk_text'] = sub_chunk_text
+                        point = PointStruct(
+                            id=str(uuid.uuid4()),
+                            vector=embedding,
+                            payload=sub_chunk_metadata
+                        )
+                        points.append(point)
+                else:
+                    embedding = self._get_embedding(chunk_text)
+                    if not embedding:
+                        continue
+                    
+                    combined_metadata['chunk_text'] = chunk_text
+                    combined_metadata['total_chunks'] = 1
+                    
+                    point = PointStruct(
+                        id=str(uuid.uuid4()),
+                        vector=embedding,
+                        payload=combined_metadata
+                    )
+                    points.append(point)
             
             if points:
                 self.client.upsert(
@@ -351,7 +368,7 @@ class UnifiedIngestion:
             else:
                 print(f"No valid chunks created for {file_path}")
                 return False
-                
+        
         except Exception as e:
             print(f"Error ingesting JSON {file_path}: {e}")
             return False
