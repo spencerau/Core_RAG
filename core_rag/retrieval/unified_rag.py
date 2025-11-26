@@ -145,7 +145,7 @@ class UnifiedRAG:
             'score': hit.score,
             'metadata': hit.payload.get('metadata', {}),
             'collection': collection_name
-        } for hit in results]
+        } for hit in results.points]
     
     def _hybrid_search(self, query: str, collection_name: str,
                       user_context: Dict = None, top_k: int = 10,
