@@ -185,8 +185,22 @@ class UnifiedRAG:
             results = self.search_collection(query, collection_name, user_context, top_k)
             all_results.extend(results)
         
-        all_results.sort(key=lambda x: x.get('score', 0), reverse=True)
-        return all_results
+        seen_texts = {}
+        deduplicated_results = []
+        
+        for result in all_results:
+            text = result.get('text', '')
+            text_key = text[:200] if len(text) > 200 else text
+            
+            if text_key in seen_texts:
+                if result.get('score', 0) > seen_texts[text_key].get('score', 0):
+                    seen_texts[text_key] = result
+            else:
+                seen_texts[text_key] = result
+        
+        deduplicated_results = list(seen_texts.values())
+        deduplicated_results.sort(key=lambda x: x.get('score', 0), reverse=True)
+        return deduplicated_results
     
     def _calculate_chunk_allocation(self, collection_names: List[str], query: str) -> Dict[str, int]:
         base_chunks = self.config.get('rag', {}).get('base_chunks_per_collection', 8)
