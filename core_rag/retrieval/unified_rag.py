@@ -71,7 +71,8 @@ class UnifiedRAG:
             return
         try:
             from utils.ollama_api import get_intermediate_ollama_api
-            self.query_router = QueryRouter(get_intermediate_ollama_api(timeout=30))
+            router_timeout = self.config.get('llm', {}).get('router_timeout', 120)
+            self.query_router = QueryRouter(get_intermediate_ollama_api(timeout=router_timeout))
             print("Query router initialized")
         except Exception as e:
             print(f"Warning: Query router initialization failed: {e}")

@@ -4,29 +4,35 @@ qdrant:
   timeout: 60
   collections:
     main: main_collection
+    main2: main_collection_2
 
 embedding:
   model: bge-m3:567m
-  ollama_host: localhost
+  ##ollama_host: localhost
+  ollama_host: dgx0.chapman.edu
   ollama_port: 11434
   timeout: 120
   keep_alive: 30m
-  retry_attempts: 8  # Increased to handle Ollama's sporadic EOF errors
+  retry_attempts: 10  # Increased to handle Ollama's sporadic EOF errors
   retry_delay: 2.0   # Longer initial delay to let Ollama recover
   #With batch_size: 8 and rate_limit_delay: 1.0, when you have a document with 10 chunks, it will:
   #Process chunks 1-8 (with 1 second delay between each = 8 seconds)
   #Process chunks 9-10 (2 more seconds)
   rate_limit_delay: 2.0  # 2 seconds between requests
-  batch_size: 4  # Smaller batches to avoid overwhelming Ollama
+  batch_size: 32  # Smaller batches to avoid overwhelming Ollama
 
 llm:
-  primary_model: gemma3:4b
+  #primary_model: gemma3:4b
+  primary_model: gpt-oss:120b
   timeout: 300
   temperature: 0.1
   max_tokens: 5000
   system_prompt: "This is just a test for the core rag pipeline. Answer questions based on the provided (rag) context"
-  router_host: localhost
-  router_port: 11434
+  # router_host: localhost
+  # router_port: 1143
+  router_host: dgx0.chapman.edu
+  router_port: 11435
+  router_timeout: 210
 
 chunker:
   strategy: recursive
@@ -43,20 +49,23 @@ rag:
 summary:
   #When true, the system first searches document summaries instead of raw chunks
   enable_summary_gating: true
-  word_count: 180
+  word_count: 200
   embed_summaries: true
   #When true, after finding matching chunks, returns the entire source document instead of just the chunk
   return_parent_docs: true
 
 query_router:
-  default_collections: [main_collection]
+  default_collections: [main_collection, main_collection_2]
   collection_descriptions:
-    main_collection: "General knowledge and documentation"
+    main_collection: "Food/Cooking Instructions"
+    main_collection_2: "TPI Disability Job Training Resources"
+
   collection_keywords:
     main_collection: ["general", "info", "help"]
   last_n_messages: 3
   min_tokens: 150
   max_tokens: 2000
-  router_model: gemma3:4b
+  #router_model: gemma3:4b
+  router_model: gpt-oss:20b
   router_temperature: 0.1
   router_max_tokens: 500

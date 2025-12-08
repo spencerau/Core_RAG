@@ -40,20 +40,41 @@ def test_ingestion_initialization(ingestion):
 
 
 def test_ingest_directory(ingestion):
-    """Test ingesting documents from a directory"""
-    result = ingestion.ingest_directory("data/main_collection")
+    """Test ingesting documents from multiple directories into different collections"""
+    result1 = ingestion.ingest_directory("data/main_collection")
     
-    assert result is not None
-    assert 'total_files' in result
-    assert 'success_files' in result
-    assert 'failed_files' in result
-    assert result['total_files'] > 0
-    assert result['success_files'] > 0
+    assert result1 is not None
+    assert 'total_files' in result1
+    assert 'success_files' in result1
+    assert result1['total_files'] > 0
+    assert result1['success_files'] > 0
+    if 'total_chunks' in result1 and result1['total_chunks'] > 0:
+        assert result1['ingested_chunks'] == result1['total_chunks'], \
+            f"Only {result1['ingested_chunks']} out of {result1['total_chunks']} chunks were ingested"
+    
+    result2 = ingestion.ingest_directory("data/main_collection_2")
+    
+    assert result2 is not None
+    assert 'total_files' in result2
+    assert 'success_files' in result2
+    assert result2['total_files'] > 0
+    assert result2['success_files'] > 0
+    if 'total_chunks' in result2 and result2['total_chunks'] > 0:
+        assert result2['ingested_chunks'] == result2['total_chunks'], \
+            f"Only {result2['ingested_chunks']} out of {result2['total_chunks']} chunks were ingested"
+    
+    if ingestion.summary_indexer:
+        print("\nRegenerating summaries after ingestion...")
+        ingestion.summary_indexer.index_directory("data/main_collection", "main_collection", [".md", ".pdf"])
+        ingestion.summary_indexer.index_directory("data/main_collection_2", "main_collection_2", [".md", ".pdf"])
 
 
 def test_collection_has_documents(ingestion):
-    """Test that documents were successfully added to the collection"""
-    info = ingestion.client.get_collection("main_collection")
-    assert info.points_count > 0
-    print(f"\n✓ Collection 'main_collection' has {info.points_count} documents")
+    info1 = ingestion.client.get_collection("main_collection")
+    assert info1.points_count > 0
+    print(f"\nCollection 'main_collection' has {info1.points_count} chunks")
+    
+    info2 = ingestion.client.get_collection("main_collection_2")
+    assert info2.points_count > 0
+    print(f"Collection 'main_collection_2' has {info2.points_count} chunks")
 

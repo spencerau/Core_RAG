@@ -15,7 +15,7 @@ from .ingest_helpers import prepare_doc_metadata, get_collection_name, extract_m
 class FileIngestor:
     def __init__(self, client: QdrantClient, config: dict, embedding_gen: EmbeddingGenerator,
                  chunker: AdvancedChunker, json_extractor: JSONContentExtractor,
-                 docstore: DocStore, metadata_extractor, base_dir: str = None):
+                 docstore: DocStore, metadata_extractor, base_dir: str = None, collection_name: str = None):
         self.client = client
         self.config = config
         self.embedding_gen = embedding_gen
@@ -24,11 +24,16 @@ class FileIngestor:
         self.docstore = docstore
         self.metadata_extractor = metadata_extractor
         self.base_dir = base_dir
+        self.collection_name = collection_name
+        self._last_used_collection = None
     
     def _generate_chunk_id(self, doc_id: str, chunk_index: int) -> str:
         """Generate deterministic chunk ID to prevent duplicates"""
         combined = f"{doc_id}:chunk:{chunk_index}"
         return hashlib.sha256(combined.encode()).hexdigest()[:32]
+    
+    def get_last_used_collection(self) -> str:
+        return self._last_used_collection
     
     def ingest_file(self, file_path: str) -> bool:
         ext = Path(file_path).suffix.lower()
@@ -54,7 +59,8 @@ class FileIngestor:
                 print(f"  Warning: No content extracted from {file_path}")
                 return False
             
-            collection = get_collection_name(file_metadata['DocumentType'], self.config)
+            collection = self.collection_name or get_collection_name(file_metadata['DocumentType'], self.config, self.base_dir, file_path)
+            self._last_used_collection = collection
             doc_id, source_path, last_modified = prepare_doc_metadata(file_path, self.base_dir)
             
             self.docstore.put(doc_id, json_content, {
@@ -63,6 +69,7 @@ class FileIngestor:
             })
             
             points = []
+            total_chunks = len(content_items)
             for idx, item in enumerate(content_items):
                 embedding = self.embedding_gen.get_embedding(item['text'])
                 if not embedding:
@@ -71,11 +78,11 @@ class FileIngestor:
                         'section_type': item.get('section_type', 'unknown'),
                         'section_name': item.get('section_name', 'Unknown Section'),
                         'section_classification': item.get('section_classification', 'Program Requirements'),
-                        'content_type': 'structured_json', 'chunk_text': item['text'], 'total_chunks': len(content_items)}
+                        'content_type': 'structured_json', 'chunk_text': item['text'], 'total_chunks': total_chunks}
                 chunk_id = self._generate_chunk_id(doc_id, idx)
                 points.append(PointStruct(id=chunk_id, vector=embedding, payload=meta))
             
-            return self._upsert_points(points, collection, file_path)
+            return self._upsert_points(points, collection, file_path, total_chunks)
         except Exception as e:
             print(f"Error ingesting JSON {file_path}: {e}")
             return False
@@ -90,7 +97,8 @@ class FileIngestor:
                 return False
             
             file_metadata = self.metadata_extractor.extract_metadata_from_path(file_path)
-            collection = get_collection_name(file_metadata.get('DocumentType', 'default'), self.config)
+            collection = self.collection_name or get_collection_name(file_metadata.get('DocumentType', 'default'), self.config, self.base_dir, file_path)
+            self._last_used_collection = collection
             doc_id, source_path, last_modified = prepare_doc_metadata(file_path, self.base_dir)
             title = extract_markdown_title(text, file_path)
             
@@ -100,17 +108,18 @@ class FileIngestor:
             })
             
             chunk_data = self.chunker.chunk_text(text, {**file_metadata, 'doc_id': doc_id, 'source_path': source_path})
+            total_chunks = len(chunk_data)
             points = []
             for idx, (chunk_text, chunk_meta) in enumerate(chunk_data):
                 embedding = self.embedding_gen.get_embedding(chunk_text)
                 if not embedding:
                     continue
                 chunk_meta.update({'doc_id': doc_id, 'source_path': source_path, 'chunk_index': idx,
-                                   'chunk_text': chunk_text, 'total_chunks': len(chunk_data)})
+                                   'chunk_text': chunk_text, 'total_chunks': total_chunks})
                 chunk_id = self._generate_chunk_id(doc_id, idx)
                 points.append(PointStruct(id=chunk_id, vector=embedding, payload=chunk_meta))
             
-            return self._upsert_points(points, collection, file_path)
+            return self._upsert_points(points, collection, file_path, total_chunks)
         except Exception as e:
             print(f"Error ingesting markdown {file_path}: {e}")
             return False
@@ -125,7 +134,8 @@ class FileIngestor:
             
             file_metadata = self.metadata_extractor.extract_metadata_from_path(file_path)
             combined_metadata = {**tika_metadata, **file_metadata}
-            collection = get_collection_name(file_metadata['DocumentType'], self.config)
+            collection = self.collection_name or get_collection_name(file_metadata['DocumentType'], self.config, self.base_dir, file_path)
+            self._last_used_collection = collection
             doc_id, source_path, last_modified = prepare_doc_metadata(file_path, self.base_dir)
             
             self.docstore.put(doc_id, text, {
@@ -136,6 +146,7 @@ class FileIngestor:
             combined_metadata['doc_id'] = doc_id
             combined_metadata['source_path'] = source_path
             chunk_data = self.chunker.chunk_text(text, combined_metadata)
+            total_chunks = len(chunk_data)
             
             points = []
             for idx, (chunk_text, chunk_meta) in enumerate(chunk_data):
@@ -143,19 +154,24 @@ class FileIngestor:
                 if not embedding:
                     continue
                 chunk_meta.update({'doc_id': doc_id, 'source_path': source_path, 'chunk_index': idx,
-                                   'chunk_text': chunk_text, 'total_chunks': len(chunk_data)})
+                                   'chunk_text': chunk_text, 'total_chunks': total_chunks})
                 chunk_id = self._generate_chunk_id(doc_id, idx)
                 points.append(PointStruct(id=chunk_id, vector=embedding, payload=chunk_meta))
             
-            return self._upsert_points(points, collection, file_path)
+            return self._upsert_points(points, collection, file_path, total_chunks)
         except Exception as e:
             print(f"Error ingesting PDF {file_path}: {e}")
             return False
     
-    def _upsert_points(self, points: List[PointStruct], collection: str, file_path: str) -> bool:
+    def _upsert_points(self, points: List[PointStruct], collection: str, file_path: str, total_chunks: int = None) -> bool:
+        self._last_chunk_stats = {'total': total_chunks or len(points), 'ingested': len(points)}
+        
         if points:
             self.client.upsert(collection_name=collection, points=points)
-            print(f"Ingested {len(points)} chunks into collection '{collection}'")
+            if total_chunks:
+                print(f"Ingested {len(points)} out of {total_chunks} chunks into collection '{collection}'")
+            else:
+                print(f"Ingested {len(points)} chunks into collection '{collection}'")
             return True
         print(f"No valid chunks created for {file_path}")
         return False

@@ -19,14 +19,15 @@ except ImportError:
 
 
 class UnifiedIngestion:
-    def __init__(self, base_dir: str = None):
-        self.config = load_config()
+    def __init__(self, base_dir: str = None, collection_name: str = None, config_path: str = None):
+        self.config = load_config(config_path) if config_path else load_config()
         self.client = QdrantClient(
             host=self.config['qdrant']['host'],
             port=self.config['qdrant']['port'],
             timeout=self.config['qdrant']['timeout']
         )
         self.base_dir = base_dir
+        self.collection_name = collection_name
         self.embedding_gen = EmbeddingGenerator(self.config)
         self.chunker = AdvancedChunker(self.config.get('chunker', {}))
         self.json_extractor = JSONContentExtractor(self.config)
@@ -49,7 +50,8 @@ class UnifiedIngestion:
         self.file_ingestor = FileIngestor(
             client=self.client, config=self.config, embedding_gen=self.embedding_gen,
             chunker=self.chunker, json_extractor=self.json_extractor, docstore=self.docstore,
-            metadata_extractor=self.metadata_extractor, base_dir=self.base_dir
+            metadata_extractor=self.metadata_extractor, base_dir=self.base_dir,
+            collection_name=self.collection_name
         )
     
     def _ensure_collections_exist(self):
@@ -70,7 +72,7 @@ class UnifiedIngestion:
         
         if success and self.summary_indexer and file_path.endswith(('.md', '.txt')):
             try:
-                collection_name = list(self.config['qdrant']['collections'].values())[0]
+                collection_name = self.collection_name or self.file_ingestor.get_last_used_collection() or list(self.config['qdrant']['collections'].values())[0]
                 self.summary_indexer.index_document(file_path, collection_name)
             except Exception as e:
                 print(f"Warning: Could not generate summary for {file_path}: {e}")
@@ -89,11 +91,11 @@ class UnifiedIngestion:
     def ingest_directory(self, directory: str, file_extensions: List[str] = None) -> Dict:
         if file_extensions is None:
             file_extensions = ['.pdf', '.json', '.md']
-        if self.base_dir is None:
+        if self.base_dir is None and self.collection_name is None:
             self.base_dir = str(directory)
             self.file_ingestor.base_dir = self.base_dir
         
-        stats = {'total_files': 0, 'success_files': 0, 'failed_files': 0, 'collections_used': set()}
+        stats = {'total_files': 0, 'success_files': 0, 'failed_files': 0, 'total_chunks': 0, 'ingested_chunks': 0, 'collections_used': set()}
         directory = Path(directory)
         if not directory.exists():
             print(f"Directory not found: {directory}")
@@ -104,8 +106,13 @@ class UnifiedIngestion:
                 if 'readme' in file_path.name.lower() or file_path.name.startswith('._'):
                     continue
                 stats['total_files'] += 1
-                if self.ingest_file(str(file_path)):
+                result = self.ingest_file(str(file_path))
+                if result:
                     stats['success_files'] += 1
+                    if hasattr(self.file_ingestor, '_last_chunk_stats'):
+                        chunk_stats = self.file_ingestor._last_chunk_stats
+                        stats['total_chunks'] += chunk_stats.get('total', 0)
+                        stats['ingested_chunks'] += chunk_stats.get('ingested', 0)
                 else:
                     stats['failed_files'] += 1
         return stats

@@ -132,6 +132,7 @@ class SummaryIndexer:
                 summary_id = hashlib.sha256(f"{doc_id}:summary".encode()).hexdigest()[:32]
                 point = PointStruct(id=summary_id, vector=embedding, payload=payload)
                 self.client.upsert(collection_name=summary_collection, points=[point])
+                print(f"Ingested summary for '{title}' into collection '{summary_collection}'")
             return True
         except Exception as e:
             print(f"Error indexing document summary {file_path}: {e}")
@@ -156,7 +157,6 @@ class SummaryIndexer:
                 stats['total_files'] += 1
                 if self.index_document(str(file_path), collection_name):
                     stats['success_files'] += 1
-                    print(f"Indexed summary: {file_path}")
                 else:
                     stats['failed_files'] += 1
         return stats
