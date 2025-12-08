@@ -13,9 +13,12 @@ class LLMHandler:
             messages.extend(history)
         messages.append({'role': 'user', 'content': prompt})
         try:
+            options = {'temperature': self.config['llm']['temperature'], 'num_predict': tokens}
+            if 'num_ctx' in self.config['llm']:
+                options['num_ctx'] = self.config['llm']['num_ctx']
             resp = self.ollama_api.chat(
                 model=self.config['llm']['primary_model'], messages=messages, stream=False,
-                options={'temperature': self.config['llm']['temperature'], 'num_predict': tokens}
+                options=options
             )
             return resp.strip() if resp else "I couldn't generate a response."
         except Exception as e:
@@ -29,9 +32,12 @@ class LLMHandler:
             messages.extend(history)
         messages.append({'role': 'user', 'content': prompt})
         try:
+            options = {'temperature': self.config['llm']['temperature'], 'num_predict': tokens}
+            if 'num_ctx' in self.config['llm']:
+                options['num_ctx'] = self.config['llm']['num_ctx']
             for chunk in self.ollama_api.chat(
                 model=self.config['llm']['primary_model'], messages=messages, stream=True,
-                options={'temperature': self.config['llm']['temperature'], 'num_predict': tokens}
+                options=options
             ):
                 yield chunk
         except Exception as e:
