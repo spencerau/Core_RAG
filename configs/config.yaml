@@ -27,7 +27,7 @@ llm:
   timeout: 300
   temperature: 0.1
   num_ctx: 128000
-  max_tokens: 5000
+  max_tokens: 20000
   system_prompt: "This is just a test for the core rag pipeline. Answer questions based on the provided (rag) context"
   # router_host: localhost
   # router_port: 1143

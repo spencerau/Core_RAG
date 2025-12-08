@@ -55,7 +55,7 @@ class AnswerGenerator:
             debug['collections_searched'] = r['collections']
             return r['collections'], r['token_allocation']
         cols = selected or list(self.collections.keys())
-        tokens = self.config.get('llm', {}).get('default_tokens', 600)
+        tokens = self.config.get('llm', {}).get('max_tokens', 15000)
         debug['routing_used'], debug['token_allocation'], debug['collections_searched'] = False, tokens, cols
         return cols, tokens
     

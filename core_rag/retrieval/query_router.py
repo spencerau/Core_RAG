@@ -38,11 +38,12 @@ class QueryRouter:
         if not collections:
             collections = default_collections
         
-        token_allocation = 600
+        base_tokens = self.config.get('llm', {}).get('max_tokens', 15000)
+        token_allocation = base_tokens
         if len(collections) > 2:
-            token_allocation = 800
+            token_allocation = int(base_tokens * 1.3)
         elif 'plan' in query_lower or 'schedule' in query_lower:
-            token_allocation = 1000
+            token_allocation = int(base_tokens * 1.6)
         
         return {
             'collections': list(set(collections)),
@@ -58,7 +59,7 @@ class QueryRouter:
         if not self.ollama_api:
             return {
                 'collections': default_collections,
-                'token_allocation': 600,
+                'token_allocation': llm_config.get('max_tokens', 15000),
                 'reasoning': 'No LLM available for routing'
             }
         
@@ -142,7 +143,7 @@ class QueryRouter:
             if not response or not response.strip():
                 return {
                     'collections': default_collections,
-                    'token_allocation': 600,
+                    'token_allocation': llm_config.get('max_tokens', 15000),
                     'reasoning': 'Empty response from router LLM'
                 }
             
@@ -158,17 +159,17 @@ class QueryRouter:
                     except json.JSONDecodeError:
                         return {
                             'collections': default_collections,
-                            'token_allocation': 600,
+                            'token_allocation': llm_config.get('max_tokens', 15000),
                             'reasoning': 'Failed to parse router response'
                         }
                 else:
                     return {
                         'collections': default_collections,
-                        'token_allocation': 600,
+                        'token_allocation': llm_config.get('max_tokens', 15000),
                         'reasoning': 'No valid JSON found in response'
                     }
             collections = result.get('collections', default_collections)
-            token_allocation = result.get('token_allocation', 600)
+            token_allocation = result.get('token_allocation', llm_config.get('max_tokens', 15000))
             reasoning = result.get('reasoning', 'LLM analysis')
             
             token_allocation = max(min_tokens, min(token_allocation, max_tokens))
@@ -188,14 +189,14 @@ class QueryRouter:
             print(f"Response was: {response[:500] if 'response' in locals() else 'No response'}")
             return {
                 'collections': default_collections,
-                'token_allocation': 600,
+                'token_allocation': llm_config.get('max_tokens', 15000),
                 'reasoning': f'JSON decode failed: {str(je)}'
             }
         except Exception as e:
             print(f"LLM routing error: {e}")
             return {
                 'collections': default_collections,
-                'token_allocation': 600,
+                'token_allocation': llm_config.get('max_tokens', 15000),
                 'reasoning': f'Error: {str(e)}'
             }
 
