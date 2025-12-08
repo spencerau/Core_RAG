@@ -76,6 +76,9 @@ class OllamaAPI:
                 content = self._format_thinking_content(content)
             
             return content
+        except requests.exceptions.HTTPError as e:
+            print(f"Error in chat completion: {e}")
+            print(f"Response: {e.response.text if hasattr(e, 'response') else 'No response'}")
         except Exception as e:
             print(f"Error in chat completion: {e}")
             return ""

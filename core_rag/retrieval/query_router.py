@@ -129,13 +129,13 @@ class QueryRouter:
 
         try:
             response = self.ollama_api.chat(
-                model=llm_config.get('router_model', 'gpt-oss:20b'),
+                model=router_config.get('router_model', 'gemma3:4b'),
                 messages=[{'role': 'user', 'content': prompt}],
                 stream=False,
                 format='json',
                 options={
-                    'temperature': llm_config.get('router_temperature', 0.1),
-                    'num_predict': llm_config.get('router_max_tokens', 500)
+                    'temperature': router_config.get('router_temperature', 0.1),
+                    'num_predict': router_config.get('router_max_tokens', 500)
                 }
             )
             

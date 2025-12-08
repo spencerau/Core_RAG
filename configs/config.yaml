@@ -1,0 +1,53 @@
+qdrant:
+  host: localhost
+  port: 6333
+  timeout: 60
+  collections:
+    main: main_collection
+
+embedding:
+  model: bge-m3:567m
+  ollama_host: localhost
+  ollama_port: 11434
+
+llm:
+  primary_model: gemma3:4b
+  timeout: 300
+  temperature: 0.1
+  max_tokens: 5000
+  system_prompt: "This is just a test for the core rag pipeline. Answer questions based on the provided (rag) context"
+  router_host: localhost
+  router_port: 11434
+
+chunker:
+  strategy: recursive
+  target_tokens: 768
+  min_tokens: 300
+  overlap_ratio: 0.15
+  respect_headings: true
+
+rag:
+  base_chunks_per_collection: 8
+  priority_boost: 4
+  collection_priority: []
+
+summary:
+  #When true, the system first searches document summaries instead of raw chunks
+  enable_summary_gating: true
+  word_count: 180
+  embed_summaries: true
+  #When true, after finding matching chunks, returns the entire source document instead of just the chunk
+  return_parent_docs: true
+
+query_router:
+  default_collections: [main_collection]
+  collection_descriptions:
+    main_collection: "General knowledge and documentation"
+  collection_keywords:
+    main_collection: ["general", "info", "help"]
+  last_n_messages: 3
+  min_tokens: 150
+  max_tokens: 2000
+  router_model: gemma3:4b
+  router_temperature: 0.1
+  router_max_tokens: 500
