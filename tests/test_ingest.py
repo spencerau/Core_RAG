@@ -9,20 +9,24 @@ def ingestion():
     ing = UnifiedIngestion()
     
     try:
-        for collection in ['main_collection', 'main_collection_summaries', 'docstore']:
+        all_collections = ing.client.get_collections().collections
+        for collection in all_collections:
             try:
-                ing.client.delete_collection(collection)
-                print(f"Cleared collection: {collection}")
-            except Exception:
-                pass
-        
+                ing.client.delete_collection(collection.name)
+                print(f"Deleted collection: {collection.name}")
+            except Exception as e:
+                print(f"Could not delete {collection.name}: {e}")
+    except Exception as e:
+        print(f"Warning: Could not list collections: {e}")
+    
+    try:
         ing._ensure_collections_exist()
         ing.docstore._ensure_collection()
         
         if ing.summary_indexer:
             ing.summary_indexer._ensure_summary_collections()
     except Exception as e:
-        print(f"Warning: Could not clear collections: {e}")
+        print(f"Warning: Could not create collections: {e}")
     
     return ing
 

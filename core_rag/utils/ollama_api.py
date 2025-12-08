@@ -1,5 +1,6 @@
 import requests
 import json
+import time
 from typing import List, Dict, Any, Iterator, Optional
 import os
 
@@ -36,17 +37,57 @@ class OllamaAPI:
     def _get_ollama_host(self) -> str:
         return os.environ.get("OLLAMA_HOST", "localhost")
     
-    def get_embeddings(self, model: str, prompt: str) -> List[float]:
+    def get_embeddings(self, model: str, prompt: str, keep_alive: str = None) -> List[float]:
+        config = load_config()
+        embedding_config = config.get('embedding', {})
+        
         url = f"{self.base_url}/api/embeddings"
         payload = {"model": model, "prompt": prompt}
         
-        try:
-            response = self.session.post(url, json=payload, timeout=30)
-            response.raise_for_status()
-            return response.json().get('embedding', [])
-        except Exception as e:
-            print(f"Error getting embeddings: {e}")
-            return []
+        if keep_alive:
+            payload["keep_alive"] = keep_alive
+        elif embedding_config.get('keep_alive'):
+            payload["keep_alive"] = embedding_config['keep_alive']
+        
+        timeout = embedding_config.get('timeout', 120)
+        retry_attempts = embedding_config.get('retry_attempts', 3)
+        retry_delay = embedding_config.get('retry_delay', 1.0)
+        
+        last_error = None
+        for attempt in range(retry_attempts):
+            try:
+                response = self.session.post(url, json=payload, timeout=timeout)
+                response.raise_for_status()
+                return response.json().get('embedding', [])
+            except requests.exceptions.HTTPError as e:
+                last_error = e
+                error_detail = ""
+                try:
+                    error_detail = f" - {e.response.text}"
+                except:
+                    pass
+                
+                if e.response.status_code >= 500 and attempt < retry_attempts - 1:
+                    wait_time = retry_delay * (2 ** attempt)
+                    print(f"Embedding request failed (attempt {attempt + 1}/{retry_attempts}): {e}{error_detail}, retrying in {wait_time}s...")
+                    time.sleep(wait_time)
+                    continue
+                else:
+                    print(f"Error getting embeddings (HTTP {e.response.status_code}): {e}{error_detail}")
+                    return []
+            except Exception as e:
+                last_error = e
+                if attempt < retry_attempts - 1:
+                    wait_time = retry_delay * (2 ** attempt)
+                    print(f"Embedding request failed (attempt {attempt + 1}/{retry_attempts}): {type(e).__name__}: {e}, retrying in {wait_time}s...")
+                    time.sleep(wait_time)
+                    continue
+                else:
+                    print(f"Error getting embeddings: {type(e).__name__}: {e}")
+                    return []
+        
+        print(f"All embedding retry attempts failed: {last_error}")
+        return []
     
     def chat(self, model: str, messages: List[Dict], stream: bool = True, think: Optional[bool] = None, 
              hide_thinking: bool = False, **kwargs) -> str:

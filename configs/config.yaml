@@ -9,6 +9,15 @@ embedding:
   model: bge-m3:567m
   ollama_host: localhost
   ollama_port: 11434
+  timeout: 120
+  keep_alive: 30m
+  retry_attempts: 8  # Increased to handle Ollama's sporadic EOF errors
+  retry_delay: 2.0   # Longer initial delay to let Ollama recover
+  #With batch_size: 8 and rate_limit_delay: 1.0, when you have a document with 10 chunks, it will:
+  #Process chunks 1-8 (with 1 second delay between each = 8 seconds)
+  #Process chunks 9-10 (2 more seconds)
+  rate_limit_delay: 2.0  # 2 seconds between requests
+  batch_size: 4  # Smaller batches to avoid overwhelming Ollama
 
 llm:
   primary_model: gemma3:4b

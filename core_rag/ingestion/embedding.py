@@ -1,4 +1,5 @@
 from typing import List
+import time
 from ..utils.ollama_api import get_ollama_api
 from ..utils.text_preprocessing import preprocess_for_embedding
 
@@ -15,6 +16,11 @@ class EmbeddingGenerator:
                 [text], task_type, self.config.get('embedding', {})
             )[0]
             embedding = self.ollama_api.get_embeddings(model=self.embedding_model, prompt=processed_text)
+            
+            rate_limit_delay = self.config.get('embedding', {}).get('rate_limit_delay', 0.2)
+            if rate_limit_delay > 0:
+                time.sleep(rate_limit_delay)
+            
             return embedding if embedding is not None else []
         except Exception as e:
             print(f"Error getting embedding: {e}")
@@ -25,9 +31,16 @@ class EmbeddingGenerator:
             processed_texts = preprocess_for_embedding(texts, task_type, self.config.get('embedding', {}))
             embeddings = []
             batch_size = self.config.get('embedding', {}).get('batch_size', 32)
+            rate_limit_delay = self.config.get('embedding', {}).get('rate_limit_delay', 0.2)
+            
             for i in range(0, len(processed_texts), batch_size):
                 for text in processed_texts[i:i + batch_size]:
-                    embeddings.append(self.ollama_api.get_embeddings(model=self.embedding_model, prompt=text))
+                    embedding = self.ollama_api.get_embeddings(model=self.embedding_model, prompt=text)
+                    embeddings.append(embedding)
+                    
+                    if rate_limit_delay > 0:
+                        time.sleep(rate_limit_delay)
+            
             return embeddings
         except Exception as e:
             print(f"Error getting batch embeddings: {e}")
