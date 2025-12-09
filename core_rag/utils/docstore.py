@@ -53,7 +53,7 @@ class QdrantDocStore(DocStore):
             print(f"Created docstore collection '{self.collection_name}'")
     
     def put(self, doc_id: str, text: str, metadata: Dict[str, Any]) -> None:
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(datetime.UTC).isoformat()
         payload = {
             'doc_id': doc_id,
             'text': text,
