@@ -1,7 +1,7 @@
 import json
 from abc import ABC, abstractmethod
 from typing import Dict, List, Optional, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams, PointStruct, Filter, FieldCondition, MatchValue
 
@@ -53,7 +53,7 @@ class QdrantDocStore(DocStore):
             print(f"Created docstore collection '{self.collection_name}'")
     
     def put(self, doc_id: str, text: str, metadata: Dict[str, Any]) -> None:
-        now = datetime.now(datetime.UTC).isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         payload = {
             'doc_id': doc_id,
             'text': text,
