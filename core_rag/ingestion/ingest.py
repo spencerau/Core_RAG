@@ -94,6 +94,8 @@ class UnifiedIngestion:
         if self.base_dir is None and self.collection_name is None:
             self.base_dir = str(directory)
             self.file_ingestor.base_dir = self.base_dir
+            if self.summary_indexer:
+                self.summary_indexer.base_dir = self.base_dir
         
         stats = {'total_files': 0, 'success_files': 0, 'failed_files': 0, 'total_chunks': 0, 'ingested_chunks': 0, 'collections_used': set()}
         directory = Path(directory)

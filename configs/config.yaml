@@ -9,7 +9,8 @@ qdrant:
 embedding:
   model: bge-m3:567m
   ##ollama_host: localhost
-  ollama_host: dgx0.chapman.edu
+  # ollama_host: dgx0.chapman.edu
+  ollama_host: 192.168.200.110
   ollama_port: 11434
   timeout: 120
   keep_alive: 30m
@@ -23,7 +24,7 @@ embedding:
 
 llm:
   #primary_model: gemma3:4b
-  primary_model: gpt-oss:120b
+  primary_model: gpt-oss:20b
   timeout: 300
   temperature: 0.1
   num_ctx: 128000
@@ -31,7 +32,8 @@ llm:
   system_prompt: "This is just a test for the core rag pipeline. Answer questions based on the provided (rag) context"
   # router_host: localhost
   # router_port: 1143
-  router_host: dgx0.chapman.edu
+  # router_host: dgx0.chapman.edu
+  router_host: 192.168.200.110
   router_port: 11435
   router_timeout: 210
 
