@@ -37,9 +37,10 @@ class SummaryIndexer:
         self.embed_summaries = summary_config.get('embed_summaries', True)
         
         llm_config = self.config.get('llm', {})
+        embedding_config = self.config.get('embedding', {})
         self.llm = Ollama(
             model=llm_config.get('primary_model', 'llama3.2'),
-            base_url=f"http://{self.config.get('embedding', {}).get('ollama_host', 'localhost')}:11434",
+            base_url=f"http://{embedding_config.get('ollama_host', 'localhost')}:{embedding_config.get('ollama_port', 11434)}",
             request_timeout=llm_config.get('timeout', 300)
         )
         self._ensure_summary_collections()

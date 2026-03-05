@@ -210,3 +210,6 @@ __marimo__/
 vllm
 vllm_repo/
 .chandra/
+
+# Local config overrides (may contain secrets)
+configs/config.local.yaml

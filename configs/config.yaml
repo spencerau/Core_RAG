@@ -7,11 +7,11 @@ qdrant:
     main2: main_collection_2
 
 embedding:
-  model: bge-m3:567m
-  ##ollama_host: localhost
-  # ollama_host: dgx0.chapman.edu
-  ollama_host: 192.168.200.110
-  ollama_port: 11434
+  #model: bge-m3:
+  model: qwen3-embedding
+  ollama_host: localhost
+  # ollama_host: 192.168.200.110
+  ollama_port: 10001
   timeout: 120
   keep_alive: 30m
   retry_attempts: 10  # Increased to handle Ollama's sporadic EOF errors
@@ -23,18 +23,15 @@ embedding:
   batch_size: 32  # Smaller batches to avoid overwhelming Ollama
 
 llm:
-  #primary_model: gemma3:4b
-  primary_model: gpt-oss:20b
+  primary_model: qwen3.5:35b
   timeout: 300
   temperature: 0.1
-  num_ctx: 128000
+  num_ctx: 256000
   max_tokens: 20000
   system_prompt: "This is just a test for the core rag pipeline. Answer questions based on the provided (rag) context"
-  # router_host: localhost
-  # router_port: 1143
-  # router_host: dgx0.chapman.edu
-  router_host: 192.168.200.110
-  router_port: 11435
+  router_host: localhost
+  # router_host: 192.168.200.110
+  router_port: 10002
   router_timeout: 210
 
 chunker:
@@ -57,6 +54,16 @@ summary:
   #When true, after finding matching chunks, returns the entire source document instead of just the chunk
   return_parent_docs: true
 
+postgresql:
+  host: localhost
+  port: 5432
+  database: core_rag
+  user: postgres
+  password: ""          # override via POSTGRES_PASSWORD env var or config.local.yaml
+
+memory:
+  compression_trigger: 5   # compress after every N user messages in active table
+
 query_router:
   default_collections: [main_collection, main_collection_2]
   collection_descriptions:
@@ -68,7 +75,6 @@ query_router:
   last_n_messages: 3
   min_tokens: 150
   max_tokens: 2000
-  #router_model: gemma3:4b
-  router_model: gpt-oss:20b
+  router_model: qwen3.5:9b
   router_temperature: 0.1
   router_max_tokens: 500
