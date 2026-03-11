@@ -21,6 +21,7 @@ embedding:
   #Process chunks 9-10 (2 more seconds)
   rate_limit_delay: 2.0  # 2 seconds between requests
   batch_size: 32  # Smaller batches to avoid overwhelming Ollama
+  dimensions: 4096  # qwen3-embedding output dimension
 
 llm:
   primary_model: qwen3.5:35b

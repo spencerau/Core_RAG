@@ -50,6 +50,9 @@ class EmbeddingGenerator:
         test_embedding = self.get_embedding("test")
         if test_embedding and len(test_embedding) > 0:
             return len(test_embedding)
+        configured_dim = self.config.get('embedding', {}).get('dimensions')
+        if configured_dim:
+            return configured_dim
         if 'bge-m3' in self.embedding_model:
             return 1024
         elif 'nomic-embed' in self.embedding_model:
