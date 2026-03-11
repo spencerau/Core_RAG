@@ -6,35 +6,6 @@ qdrant:
     main: main_collection
     main2: main_collection_2
 
-embedding:
-  #model: bge-m3:
-  model: qwen3-embedding
-  ollama_host: localhost
-  # ollama_host: 192.168.200.110
-  ollama_port: 10001
-  timeout: 120
-  keep_alive: 30m
-  retry_attempts: 10  # Increased to handle Ollama's sporadic EOF errors
-  retry_delay: 2.0   # Longer initial delay to let Ollama recover
-  #With batch_size: 8 and rate_limit_delay: 1.0, when you have a document with 10 chunks, it will:
-  #Process chunks 1-8 (with 1 second delay between each = 8 seconds)
-  #Process chunks 9-10 (2 more seconds)
-  rate_limit_delay: 2.0  # 2 seconds between requests
-  batch_size: 32  # Smaller batches to avoid overwhelming Ollama
-  dimensions: 4096  # qwen3-embedding output dimension
-
-llm:
-  primary_model: qwen3.5:35b
-  timeout: 300
-  temperature: 0.1
-  num_ctx: 256000
-  max_tokens: 20000
-  system_prompt: "This is just a test for the core rag pipeline. Answer questions based on the provided (rag) context"
-  router_host: localhost
-  # router_host: 192.168.200.110
-  router_port: 10002
-  router_timeout: 210
-
 chunker:
   strategy: recursive
   target_tokens: 768
@@ -76,6 +47,3 @@ query_router:
   last_n_messages: 3
   min_tokens: 150
   max_tokens: 2000
-  router_model: qwen3.5:9b
-  router_temperature: 0.1
-  router_max_tokens: 500

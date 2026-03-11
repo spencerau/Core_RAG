@@ -42,7 +42,6 @@ def compress_messages(messages: List[Dict], config: dict = None) -> str:
     if config is None:
         config = load_config()
 
-    # Format messages as readable turns
     lines = []
     for msg in messages:
         role_label = "User" if msg['role'] == 'user' else "Assistant"
@@ -52,7 +51,7 @@ def compress_messages(messages: List[Dict], config: dict = None) -> str:
     user_prompt = _COMPRESSION_USER_TEMPLATE.format(turns=turns_text)
 
     api = get_intermediate_ollama_api()
-    router_model = config.get('query_router', {}).get('router_model', 'gpt-oss:20b')
+    router_model = config.get('llm', {}).get('router_model', 'qwen3.5:9b')
     router_timeout = config.get('llm', {}).get('router_timeout', 120)
 
     llm_messages = [
@@ -75,7 +74,6 @@ def compress_messages(messages: List[Dict], config: dict = None) -> str:
         return summary.strip()
     except Exception as exc:
         logger.warning("Compression LLM call failed (%s); falling back to truncation.", exc)
-        # Fallback: return a plain truncated version of the turns
         fallback = turns_text[:1000]
         if len(turns_text) > 1000:
             fallback += " [truncated]"
