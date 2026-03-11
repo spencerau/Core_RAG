@@ -32,18 +32,19 @@ def load_config(config_name=None):
     try:
         config = _load_yaml(config_path)
 
-        # Merge model.yaml if it exists alongside config.yaml
         if not os.path.isabs(config_name):
             model_path = os.path.join(configs_dir, "model.yaml")
             if os.path.exists(model_path):
                 model_config = _load_yaml(model_path)
                 config = merge_configs(config, model_config)
 
-        # Apply local overrides (can override both config.yaml and model.yaml settings)
-        local_config_path = os.path.join(configs_dir, "config.local.yaml")
-        if os.path.exists(local_config_path):
-            local_config = _load_yaml(local_config_path)
-            config = merge_configs(config, local_config)
+        if os.environ.get('LOCAL_DEV', '').lower() == 'true':
+            local_config_path = os.path.join(configs_dir, "config.local.yaml")
+            if os.path.exists(local_config_path):
+                config = merge_configs(config, _load_yaml(local_config_path))
+            model_local_path = os.path.join(configs_dir, "model.local.yaml")
+            if os.path.exists(model_local_path):
+                config = merge_configs(config, _load_yaml(model_local_path))
 
         if 'QDRANT_HOST' in os.environ:
             config['qdrant']['host'] = os.environ['QDRANT_HOST']
