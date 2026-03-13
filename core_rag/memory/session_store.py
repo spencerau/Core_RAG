@@ -47,7 +47,7 @@ def get_or_create_session(
                 )
                 row = cur.fetchone()
         if row is None:
-            raise ValueError(f"Session {session_id} not found")
+            return create_session(user_id, config)
         if row[0] != user_id:
             raise ValueError(f"Session {session_id} belongs to a different user")
         return session_id
