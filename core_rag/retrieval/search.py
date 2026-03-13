@@ -45,9 +45,18 @@ class SearchEngine:
         collection = self.collections.get(collection_name, collection_name)
         results = self.client.query_points(collection_name=collection, query=query_vector,
                                            limit=top_k, query_filter=filter_obj)
-        return [{'text': h.payload.get('text', ''), 'score': h.score,
-                 'metadata': h.payload.get('metadata', {}), 'collection': collection_name}
-                for h in results.points]
+        return [
+            {
+                'text': h.payload.get('chunk_text') or h.payload.get('text', ''),
+                'doc_id': h.payload.get('doc_id', ''),
+                'score': h.score,
+                'metadata': h.payload.get('metadata') or {
+                    k: v for k, v in h.payload.items() if k not in ('chunk_text', 'text')
+                },
+                'collection': collection_name,
+            }
+            for h in results.points
+        ]
     
     def hybrid_search(self, query: str, collection_name: str, user_context: Dict = None,
                       top_k: int = 10, document_type: str = None) -> List[Dict]:
