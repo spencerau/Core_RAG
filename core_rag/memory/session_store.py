@@ -2,6 +2,7 @@
 CRUD operations for sessions, messages, archived_messages, and compressions tables.
 """
 
+import uuid
 from typing import List, Dict, Optional
 from .db import get_connection
 
@@ -10,15 +11,17 @@ from .db import get_connection
 # Sessions
 # ---------------------------------------------------------------------------
 
-def create_session(user_id: str, config: dict = None) -> str:
+def create_session(user_id: str, session_id: str = None, config: dict = None) -> str:
     """Insert a new session row and return its UUID as a string."""
+    if session_id is None:
+        session_id = str(uuid.uuid4())
     with get_connection(config) as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "INSERT INTO sessions (user_id) VALUES (%s) RETURNING session_id::text",
-                (user_id,),
+                "INSERT INTO sessions (session_id, user_id) VALUES (%s::uuid, %s)",
+                (session_id, user_id),
             )
-            return cur.fetchone()[0]
+    return session_id
 
 
 def session_exists(session_id: str, config: dict = None) -> bool:
@@ -47,11 +50,11 @@ def get_or_create_session(
                 )
                 row = cur.fetchone()
         if row is None:
-            return create_session(user_id, config)
+            return create_session(user_id, session_id, config)
         if row[0] != user_id:
             raise ValueError(f"Session {session_id} belongs to a different user")
         return session_id
-    return create_session(user_id, config)
+    return create_session(user_id, config=config)
 
 
 def touch_session(session_id: str, config: dict = None):
