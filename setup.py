@@ -16,6 +16,7 @@ setup(
     long_description_content_type="text/markdown",
     url="https://github.com/spencerau/Core_RAG",
     packages=find_packages(),
+    package_data={"core_rag": ["memory/schema.sql"]},
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: AGPL3 License",

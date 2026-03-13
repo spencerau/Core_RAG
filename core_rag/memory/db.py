@@ -54,7 +54,7 @@ def get_connection(config: dict = None):
 
 def init_db(config: dict = None):
     """Create tables if they don't exist by running schema.sql."""
-    schema_path = Path(__file__).parent.parent.parent / 'scripts' / 'schema.sql'
+    schema_path = Path(__file__).parent / 'schema.sql'
     sql = schema_path.read_text()
     with get_connection(config) as conn:
         with conn.cursor() as cur:
