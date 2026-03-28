@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "core-rag"
+version = "0.1.0"
+description = "A generic, domain-agnostic RAG pipeline with Qdrant vector search"
+authors = [{ name = "Spencer Au", email = "spencerau96@gmail.com" }]
+requires-python = ">=3.12"
+dependencies = [
+    "qdrant-client>=1.7.0",
+    "pyyaml>=6.0",
+    "tiktoken>=0.5.0",
+    "numpy>=1.24.0",
+    "requests>=2.31.0",
+    "sentence-transformers>=2.2.0",
+    "tika>=2.6.0",
+    "pypdf>=3.0.0",
+    "rank-bm25>=0.2.2",
+    "psycopg2-binary>=2.9.0",
+    "python-dotenv>=1.0.0",
+    "pydantic>=2.0.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[project.urls]
+Homepage = "https://github.com/spencerau/Core_RAG"
+
+[tool.setuptools.packages.find]
+where = ["."]
+
+[tool.setuptools.package-data]
+core_rag = ["memory/schema.sql"]
+
+[tool.pytest.ini_options]
+addopts = "-r sw"

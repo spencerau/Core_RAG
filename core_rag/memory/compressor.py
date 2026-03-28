@@ -6,7 +6,7 @@ intermediate LLM (spencerau-intermediate-llm on the DGX cluster).
 import logging
 from typing import List, Dict
 
-from core_rag.utils.ollama_api import get_intermediate_ollama_api
+from core_rag.utils.llm_api import get_intermediate_ollama_api
 from core_rag.utils.config_loader import load_config
 
 logger = logging.getLogger(__name__)
@@ -50,9 +50,9 @@ def compress_messages(messages: List[Dict], config: dict = None) -> str:
 
     user_prompt = _COMPRESSION_USER_TEMPLATE.format(turns=turns_text)
 
-    api = get_intermediate_ollama_api()
-    router_model = config.get('llm', {}).get('router_model', 'qwen3.5:9b')
-    router_timeout = config.get('llm', {}).get('router_timeout', 120)
+    int_llm_config = config.get('intermediate_llm', {})
+    api = get_intermediate_ollama_api(timeout=int_llm_config.get('timeout', 120))
+    router_model = int_llm_config.get('model', 'qwen3.5:9b')
 
     llm_messages = [
         {'role': 'system', 'content': _COMPRESSION_SYSTEM_PROMPT},

@@ -47,15 +47,19 @@ def load_config(config_name=None):
                 config = merge_configs(config, _load_yaml(model_local_path))
 
         if 'QDRANT_HOST' in os.environ:
-            config['qdrant']['host'] = os.environ['QDRANT_HOST']
+            config.setdefault('qdrant', {})['host'] = os.environ['QDRANT_HOST']
 
-        if 'OLLAMA_HOST' in os.environ:
-            if 'embedding' not in config:
-                config['embedding'] = {}
-            config['embedding']['ollama_host'] = os.environ['OLLAMA_HOST']
+        if 'QDRANT_PORT' in os.environ:
+            config.setdefault('qdrant', {})['port'] = int(os.environ['QDRANT_PORT'])
 
+        if 'POSTGRES_PORT' in os.environ:
+            config.setdefault('postgresql', {})['port'] = int(os.environ['POSTGRES_PORT'])
+
+        _llm_host = os.environ.get('LLM_HOST') or os.environ.get('OLLAMA_HOST')
+        if _llm_host:
+            config.setdefault('embedding', {})['host'] = _llm_host
             if 'cluster' in config:
-                config['cluster']['ollama_host'] = os.environ['OLLAMA_HOST']
+                config['cluster']['host'] = _llm_host
 
         return config
     except FileNotFoundError:

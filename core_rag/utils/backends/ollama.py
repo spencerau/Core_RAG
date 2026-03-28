@@ -1,58 +1,61 @@
-import requests
 import json
-import time
-from typing import List, Dict, Any, Iterator, Optional
 import os
+import re
+import time
+from typing import Dict, Iterator, List, Optional
 
-from .config_loader import load_config
+import requests
+
+from ..config_loader import load_config
+from .base import BaseLLMBackend
 
 
-class OllamaAPI:
-    
+class OllamaBackend(BaseLLMBackend):
+
     def __init__(self, base_url: str = None, timeout: int = 300):
         config = load_config()
-        
+
         if base_url:
             self.base_url = base_url
         else:
             cluster_config = config.get('cluster', {})
             if cluster_config.get('enabled', False):
-                host = cluster_config.get('ollama_host', 'localhost')
-                port = cluster_config.get('ollama_port', 11434)
+                host = cluster_config.get('host', 'localhost')
+                port = cluster_config.get('port', 11434)
                 self.base_url = f"http://{host}:{port}"
                 print(f"Using cluster Ollama at {self.base_url}")
             else:
                 embedding_config = config.get('embedding', {})
-                host = embedding_config.get('ollama_host', self._get_ollama_host())
-                port = embedding_config.get('ollama_port', 11434)
+                host = embedding_config.get('host', self._get_default_host())
+                port = embedding_config.get('port', 11434)
                 self.base_url = f"http://{host}:{port}"
-        
+
         self.timeout = timeout
         self.session = requests.Session()
         self.session.headers.update({
             'Content-Type': 'application/json',
             'Connection': 'keep-alive'
         })
-    
-    def _get_ollama_host(self) -> str:
-        return os.environ.get("OLLAMA_HOST", "localhost")
-    
-    def get_embeddings(self, model: str, prompt: str, keep_alive: str = None) -> List[float]:
+
+    def _get_default_host(self) -> str:
+        return os.environ.get("LLM_HOST", os.environ.get("OLLAMA_HOST", "localhost"))
+
+    def get_embeddings(self, model: str, prompt: str, keep_alive: str = None, **kwargs) -> List[float]:
         config = load_config()
         embedding_config = config.get('embedding', {})
-        
+
         url = f"{self.base_url}/api/embeddings"
         payload = {"model": model, "prompt": prompt}
-        
+
         if keep_alive:
             payload["keep_alive"] = keep_alive
         elif embedding_config.get('keep_alive'):
             payload["keep_alive"] = embedding_config['keep_alive']
-        
+
         timeout = embedding_config.get('timeout', 120)
         retry_attempts = embedding_config.get('retry_attempts', 3)
         retry_delay = embedding_config.get('retry_delay', 1.0)
-        
+
         last_error = None
         for attempt in range(retry_attempts):
             try:
@@ -64,9 +67,9 @@ class OllamaAPI:
                 error_detail = ""
                 try:
                     error_detail = f" - {e.response.text}"
-                except:
+                except Exception:
                     pass
-                
+
                 if e.response.status_code >= 500 and attempt < retry_attempts - 1:
                     wait_time = retry_delay * (2 ** attempt)
                     print(f"Embedding request failed (attempt {attempt + 1}/{retry_attempts}): {e}{error_detail}, retrying in {wait_time}s...")
@@ -85,15 +88,17 @@ class OllamaAPI:
                 else:
                     print(f"Error getting embeddings: {type(e).__name__}: {e}")
                     return []
-        
+
         print(f"All embedding retry attempts failed: {last_error}")
         return []
-    
-    def chat(self, model: str, messages: List[Dict], stream: bool = True, think: Optional[bool] = None, 
-             hide_thinking: bool = False, **kwargs) -> str:
+
+    def chat(self, model: str, messages: List[Dict], stream: bool = True,
+             think: Optional[bool] = None, hide_thinking: bool = False,
+             **kwargs) -> str:
         if stream:
-            return ''.join(self.chat_stream(model, messages, think=think, hide_thinking=hide_thinking, **kwargs))
-        
+            return ''.join(self.chat_stream(model, messages, think=think,
+                                            hide_thinking=hide_thinking, **kwargs))
+
         url = f"{self.base_url}/api/chat"
         payload = {
             "model": model,
@@ -101,21 +106,21 @@ class OllamaAPI:
             "stream": False,
             **kwargs
         }
-        
+
         if think is not None:
             payload["think"] = think
-        
+
         try:
             response = self.session.post(url, json=payload, timeout=self.timeout)
             response.raise_for_status()
             data = response.json()
             content = data.get('message', {}).get('content', '')
-            
+
             if hide_thinking and content:
                 content = self._strip_thinking_tags(content)
             elif not hide_thinking and content and '<think>' in content:
                 content = self._format_thinking_content(content)
-            
+
             return content
         except requests.exceptions.HTTPError as e:
             print(f"Error in chat completion: {e}")
@@ -123,9 +128,10 @@ class OllamaAPI:
         except Exception as e:
             print(f"Error in chat completion: {e}")
             return ""
-    
-    def chat_stream(self, model: str, messages: List[Dict], think: Optional[bool] = None, 
-                    hide_thinking: bool = False, **kwargs) -> Iterator[str]:
+
+    def chat_stream(self, model: str, messages: List[Dict],
+                    think: Optional[bool] = None, hide_thinking: bool = False,
+                    **kwargs) -> Iterator[str]:
         url = f"{self.base_url}/api/chat"
         payload = {
             "model": model,
@@ -133,17 +139,16 @@ class OllamaAPI:
             "stream": True,
             **kwargs
         }
-        
+
         if think is not None:
             payload["think"] = think
-        
+
         try:
             response = self.session.post(url, json=payload, stream=True, timeout=self.timeout)
             response.raise_for_status()
-            
-            accumulated_content = ""
+
             in_thinking = False
-            
+
             for line in response.iter_lines():
                 if not line:
                     continue
@@ -151,8 +156,7 @@ class OllamaAPI:
                     data = json.loads(line.decode())
                     if 'message' in data and 'content' in data['message']:
                         content = data['message']['content']
-                        accumulated_content += content
-                        
+
                         if hide_thinking:
                             if '<think>' in content:
                                 in_thinking = True
@@ -173,25 +177,25 @@ class OllamaAPI:
         except Exception as e:
             print(f"Error in streaming chat: {e}")
             yield ""
-    
-    def chat_with_thinking(self, model: str, messages: List[Dict], stream: bool = True, **kwargs) -> Dict[str, str]:
+
+    def chat_with_thinking(self, model: str, messages: List[Dict],
+                           stream: bool = True, think: bool = True, **kwargs) -> Dict[str, str]:
         url = f"{self.base_url}/api/chat"
         payload = {
             "model": model,
             "messages": messages,
             "stream": stream,
-            "think": True,
+            "think": think,
             **kwargs
         }
-        
+
         if stream:
             thinking = ""
             content = ""
-            
             try:
                 response = self.session.post(url, json=payload, stream=True, timeout=self.timeout)
                 response.raise_for_status()
-                
+
                 for line in response.iter_lines():
                     if not line:
                         continue
@@ -204,7 +208,7 @@ class OllamaAPI:
                                 content += data['message']['content']
                     except json.JSONDecodeError:
                         continue
-                        
+
                 return {"thinking": thinking, "content": content}
             except Exception as e:
                 print(f"Error in streaming chat with thinking: {e}")
@@ -222,7 +226,24 @@ class OllamaAPI:
             except Exception as e:
                 print(f"Error in chat with thinking: {e}")
                 return {"thinking": "", "content": ""}
-    
+
+    def rerank(self, model: str, query: str, documents: List[str]) -> List[float]:
+        url = f"{self.base_url}/api/rerank"
+        payload = {"model": model, "query": query, "documents": documents}
+        try:
+            response = self.session.post(url, json=payload, timeout=self.timeout)
+            response.raise_for_status()
+            results = response.json().get('results', [])
+            scores = [0.0] * len(documents)
+            for r in results:
+                idx = r.get('index', -1)
+                if 0 <= idx < len(scores):
+                    scores[idx] = float(r.get('relevance_score', 0.0))
+            return scores
+        except Exception as e:
+            print(f"Error in rerank: {e}")
+            return [0.0] * len(documents)
+
     def check_model(self, model: str) -> bool:
         url = f"{self.base_url}/api/tags"
         try:
@@ -234,46 +255,13 @@ class OllamaAPI:
         except Exception as e:
             print(f"Error checking models: {e}")
             return False
-    
+
     def _strip_thinking_tags(self, content: str) -> str:
-        import re
         return re.sub(r'<think>.*?</think>', '', content, flags=re.DOTALL)
-    
+
     def _format_thinking_content(self, content: str) -> str:
-        import re
-        
         def replace_thinking(match):
             thinking_content = match.group(1).strip()
             return f"\n\n---\n\n**Thinking Process:**\n\n*{thinking_content}*\n\n---\n\n"
-        
-        formatted = re.sub(r'<think>(.*?)</think>', replace_thinking, content, flags=re.DOTALL)
-        return formatted
 
-
-_ollama_api = None
-_intermediate_ollama_api = None
-
-def get_ollama_api(timeout: int = 300) -> OllamaAPI:
-    global _ollama_api
-    if _ollama_api is None:
-        _ollama_api = OllamaAPI(timeout=timeout)
-    return _ollama_api
-
-def get_intermediate_ollama_api(timeout: int = 60) -> OllamaAPI:
-    global _intermediate_ollama_api
-    if _intermediate_ollama_api is None:
-        host = os.environ.get("OLLAMA_INTERMEDIATE_HOST")
-        port = os.environ.get("OLLAMA_INTERMEDIATE_PORT")
-        
-        if host and port:
-            base_url = f"http://{host}:{port}"
-        else:
-            config = load_config()
-            llm_config = config.get('llm', {})
-            host = llm_config.get('router_host', 'localhost')
-            port = llm_config.get('router_port', 11435)
-            base_url = f"http://{host}:{port}"
-        
-        _intermediate_ollama_api = OllamaAPI(base_url=base_url, timeout=timeout)
-        print(f"Using intermediate Ollama API at {base_url}")
-    return _intermediate_ollama_api
+        return re.sub(r'<think>(.*?)</think>', replace_thinking, content, flags=re.DOTALL)

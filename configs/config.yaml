@@ -3,8 +3,9 @@ qdrant:
   port: 6333
   timeout: 60
   collections:
-    main: main_collection
-    main2: main_collection_2
+    job_coaching: job_coaching
+    major_catalogs: major_catalogs
+    recipes: recipes
 
 chunker:
   strategy: recursive
@@ -19,12 +20,28 @@ rag:
   collection_priority: []
 
 summary:
-  #When true, the system first searches document summaries instead of raw chunks
-  enable_summary_gating: true
   word_count: 200
   embed_summaries: true
   #When true, after finding matching chunks, returns the entire source document instead of just the chunk
   return_parent_docs: true
+
+# Per-collection feature flags.
+# summary_enabled  – generate and retrieve via document summaries
+# reranking_enabled – apply cross-encoder reranking to chunks from this collection
+# hybrid_enabled   – use hybrid (dense + BM25) search (requires OpenSearch)
+collection_config:
+  job_coaching:
+    summary_enabled: true
+    reranking_enabled: true
+    hybrid_enabled: false
+  major_catalogs:
+    summary_enabled: false
+    reranking_enabled: false
+    hybrid_enabled: false
+  recipes:
+    summary_enabled: true
+    reranking_enabled: true
+    hybrid_enabled: false
 
 postgresql:
   host: localhost
@@ -37,13 +54,16 @@ memory:
   compression_trigger: 5   # compress after every N user messages in active table
 
 query_router:
-  default_collections: [main_collection, main_collection_2]
+  default_collections: [job_coaching, major_catalogs, recipes]
   collection_descriptions:
-    main_collection: "Food/Cooking Instructions"
-    main_collection_2: "TPI Disability Job Training Resources"
+    job_coaching: "Job coaching, career development, employment support, resume writing, and interview preparation resources"
+    major_catalogs: "University major and course catalog information including degree requirements, course listings, and academic programs"
+    recipes: "Food recipes, cooking instructions, ingredients, and meal preparation guides"
 
   collection_keywords:
-    main_collection: ["general", "info", "help"]
+    job_coaching: ["job", "career", "coaching", "employment", "work", "resume", "interview", "hire", "salary", "occupation"]
+    major_catalogs: ["major", "course", "degree", "credit", "curriculum", "catalog", "program", "university", "prerequisite", "semester"]
+    recipes: ["recipe", "cook", "food", "ingredient", "meal", "dish", "bake", "kitchen", "eat", "prepare"]
   last_n_messages: 3
   min_tokens: 150
   max_tokens: 2000

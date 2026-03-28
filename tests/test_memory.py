@@ -62,35 +62,35 @@ def test_init_db(config):
 
 
 def test_create_session(config):
-    sid = session_store.create_session(TEST_USER, config)
-    assert isinstance(sid, str) and len(sid) == 36  # UUID format
-    print(f"\n✓ Created session {sid}")
+    sid = session_store.create_session(TEST_USER, config=config)
+    assert isinstance(sid, str) and len(sid) == 36
+    print(f"\nCreated session {sid}")
 
 
 def test_get_or_create_session_new(config):
     sid = session_store.get_or_create_session(TEST_USER, config=config)
     assert sid is not None
-    print(f"\n✓ get_or_create_session (new): {sid}")
+    print(f"\nget_or_create_session (new): {sid}")
 
 
 def test_get_or_create_session_existing(config):
-    sid1 = session_store.create_session(TEST_USER, config)
+    sid1 = session_store.create_session(TEST_USER, config=config)
     sid2 = session_store.get_or_create_session(TEST_USER, session_id=sid1, config=config)
     assert sid1 == sid2
-    print(f"\n✓ get_or_create_session (existing) returned same id: {sid1}")
+    print(f"\nget_or_create_session (existing) returned same id: {sid1}")
 
 
 def test_get_or_create_session_wrong_user(config):
-    sid = session_store.create_session(TEST_USER, config)
+    sid = session_store.create_session(TEST_USER, config=config)
     with pytest.raises(ValueError, match="different user"):
         session_store.get_or_create_session("other_user", session_id=sid, config=config)
 
 
 def test_add_and_get_messages(config):
-    sid = session_store.create_session(TEST_USER, config)
-    idx0 = session_store.add_message(sid, TEST_USER, 'user',      'Hello', config)
-    idx1 = session_store.add_message(sid, TEST_USER, 'assistant', 'Hi!',   config)
-    idx2 = session_store.add_message(sid, TEST_USER, 'user',      'Bye',   config)
+    sid = session_store.create_session(TEST_USER, config=config)
+    session_store.add_message(sid, TEST_USER, 'user',      'Hello', config)
+    session_store.add_message(sid, TEST_USER, 'assistant', 'Hi!',   config)
+    session_store.add_message(sid, TEST_USER, 'user',      'Bye',   config)
 
     msgs = session_store.get_active_messages(sid, config)
     assert len(msgs) == 3
@@ -101,11 +101,11 @@ def test_add_and_get_messages(config):
 
     count = session_store.count_active_user_messages(sid, config)
     assert count == 2
-    print(f"\n✓ add/get messages: 3 messages stored, 2 user messages counted")
+    print(f"\nadd/get messages: 3 messages stored, 2 user messages counted")
 
 
 def test_insert_compression_and_archive(config):
-    sid = session_store.create_session(TEST_USER, config)
+    sid = session_store.create_session(TEST_USER, config=config)
     session_store.add_message(sid, TEST_USER, 'user',      'Q1', config)
     session_store.add_message(sid, TEST_USER, 'assistant', 'A1', config)
 
@@ -131,7 +131,7 @@ def test_insert_compression_and_archive(config):
     compressions = session_store.get_compressions(sid, config)
     assert len(compressions) == 1
     assert "Q1" in compressions[0]['summary'] or "user" in compressions[0]['summary']
-    print(f"\n✓ Compression {comp_id} stored, {len(active)} messages archived")
+    print(f"\nCompression {comp_id} stored, {len(active)} messages archived")
 
 
 # ---------------------------------------------------------------------------
@@ -141,12 +141,12 @@ def test_insert_compression_and_archive(config):
 def test_chat_session_init(session):
     assert session.session_id is not None
     assert len(session.session_id) == 36
-    print(f"\n✓ ChatSession initialised with session_id {session.session_id}")
+    print(f"\nChatSession initialised with session_id {session.session_id}")
 
 
 def test_first_chat(session, config):
     """Single chat turn — user and assistant messages should be stored."""
-    answer = session.chat("What is a Krabby Patty?")
+    answer = session.chat("What resources are available for job coaching?")
 
     assert isinstance(answer, str)
     assert len(answer) > 0
@@ -155,7 +155,7 @@ def test_first_chat(session, config):
     roles = [m['role'] for m in msgs]
     assert 'user' in roles
     assert 'assistant' in roles
-    print(f"\n✓ First chat answer ({len(answer)} chars), {len(msgs)} messages stored")
+    print(f"\nFirst chat answer ({len(answer)} chars), {len(msgs)} messages stored")
 
 
 def test_second_chat_triggers_compression(session, config):
@@ -164,7 +164,7 @@ def test_second_chat_triggers_compression(session, config):
     causing the first 2 messages (user+assistant) to be archived and a
     compression summary to be stored.
     """
-    answer = session.chat("Who makes it?")
+    answer = session.chat("What specific techniques does it recommend?")
 
     assert isinstance(answer, str)
     assert len(answer) > 0
@@ -183,7 +183,7 @@ def test_second_chat_triggers_compression(session, config):
 
     assert archived_count >= 2, f"Expected archived messages, got {archived_count}"
     print(
-        f"\n✓ Compression triggered: {len(compressions)} compression(s), "
+        f"\nCompression triggered: {len(compressions)} compression(s), "
         f"{archived_count} archived message(s)"
     )
 
@@ -210,13 +210,13 @@ def test_history_includes_compression(session, config):
                 "DELETE FROM messages WHERE session_id = %s::uuid AND content = '__probe__'",
                 (session.session_id,),
             )
-    print(f"\n✓ History contains compression pseudo-turn ({len(history)} entries)")
+    print(f"\nHistory contains compression pseudo-turn ({len(history)} entries)")
 
 
 def test_session_resume(config):
     """Creating a new ChatSession with an existing session_id should resume it."""
     original = ChatSession(user_id=TEST_USER, config=config)
-    original.chat("What is the secret formula?")
+    original.chat("What courses are required for a CS degree?")
 
     resumed = ChatSession(
         user_id=TEST_USER,
@@ -226,7 +226,7 @@ def test_session_resume(config):
     assert resumed.session_id == original.session_id
     answer = resumed.chat("Can you summarise what we discussed?")
     assert isinstance(answer, str) and len(answer) > 0
-    print(f"\n✓ Resumed session {resumed.session_id}, got answer ({len(answer)} chars)")
+    print(f"\nResumed session {resumed.session_id}, got answer ({len(answer)} chars)")
 
 
 def test_streaming_chat(session, config):
@@ -248,7 +248,7 @@ def test_streaming_chat(session, config):
 
     count_before = _total_messages(session.session_id)
 
-    gen = session.chat("Describe the Krusty Krab restaurant.", stream=True)
+    gen = session.chat("What are some good recipes for a beginner cook?", stream=True)
     full = ""
     for token in gen:
         full += token
@@ -259,4 +259,4 @@ def test_streaming_chat(session, config):
     # Should have at least 2 new rows: the user message + the assistant reply
     assert count_after >= count_before + 2, \
         f"Expected at least 2 new messages, got {count_after - count_before}"
-    print(f"\n✓ Streaming chat: {len(full)} chars received, {count_after - count_before} new rows stored")
+    print(f"\nStreaming chat: {len(full)} chars received, {count_after - count_before} new rows stored")

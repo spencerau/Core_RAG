@@ -72,18 +72,29 @@ class SearchEngine:
             return dense_results[:top_k]
     
     def search_collection(self, query: str, collection_name: str, user_context: Dict = None,
-                          top_k: int = 10, document_type: str = None) -> List[Dict]:
-        if self.hybrid_disabled or not self.bm25_retriever:
-            return self.dense_search(query, collection_name, user_context, top_k, document_type)
-        return self.hybrid_search(query, collection_name, user_context, top_k, document_type)
-    
+                          top_k: int = 10, document_type: str = None,
+                          use_hybrid: bool = None) -> List[Dict]:
+        # use_hybrid=None → fall back to global hybrid_disabled / bm25 availability
+        if use_hybrid is None:
+            use_hybrid = bool(self.bm25_retriever and not self.hybrid_disabled)
+        if use_hybrid and self.bm25_retriever:
+            return self.hybrid_search(query, collection_name, user_context, top_k, document_type)
+        return self.dense_search(query, collection_name, user_context, top_k, document_type)
+
     def search_multiple_collections(self, query: str, collection_names: List[str],
                                     user_context: Dict = None, top_k_per_collection: int = 8,
-                                    chunk_allocation: Dict[str, int] = None) -> List[Dict]:
+                                    chunk_allocation: Dict[str, int] = None,
+                                    collection_cfg: Dict = None) -> List[Dict]:
         all_results = []
         for name in collection_names:
             top_k = (chunk_allocation or {}).get(name, top_k_per_collection)
-            all_results.extend(self.search_collection(query, name, user_context, top_k))
+            use_hybrid = None
+            if collection_cfg:
+                cfg = collection_cfg.get(name, {})
+                if 'hybrid_enabled' in cfg:
+                    use_hybrid = cfg['hybrid_enabled']
+            all_results.extend(self.search_collection(query, name, user_context, top_k,
+                                                       use_hybrid=use_hybrid))
         seen = {}
         for r in all_results:
             key = r.get('text', '')[:200]

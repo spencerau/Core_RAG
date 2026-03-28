@@ -1,6 +1,6 @@
 from typing import List
 import time
-from ..utils.ollama_api import get_ollama_api
+from ..utils.llm_api import get_ollama_api
 from ..utils.text_preprocessing import preprocess_for_embedding
 
 

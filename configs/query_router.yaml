@@ -1,0 +1,32 @@
+prompt_template: |
+  You are a routing system for {router_context}.
+
+  Analyze the query and determine:
+    1. Which knowledge collections are needed to answer it (select one or more)
+    2. How many tokens the response should use (between {min_tokens} and {max_tokens})
+    3. How confident you are in this routing decision (0.0 to 1.0)
+
+  Available Collections:
+  {collections_desc}
+
+  User Context:
+  {context}
+
+  Recent Conversation:
+  {conversation_context}
+
+  Current Query: "{query}"
+
+  Token Allocation Guidelines:
+    - Simple lookups: {min_tokens}-300 tokens
+    - Detailed information: 300-500 tokens
+    - Multiple topics: 500-800 tokens
+    - Complex requests: 800-{max_tokens} tokens
+
+  Confidence Guidelines:
+    - 0.9-1.0: Query clearly maps to a specific collection
+    - 0.7-0.9: Query likely belongs to a collection with some ambiguity
+    - 0.5-0.7: Query could belong to multiple collections or is unclear
+    - Below 0.5: Very uncertain, using default collections
+
+  Respond with valid JSON matching the required schema.

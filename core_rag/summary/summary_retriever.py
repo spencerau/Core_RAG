@@ -3,7 +3,7 @@ from typing import List, Dict, Optional, Any
 from qdrant_client import QdrantClient
 
 from ..utils.config_loader import load_config
-from ..utils.ollama_api import get_ollama_api
+from ..utils.llm_api import get_ollama_api
 from ..utils.docstore import get_docstore
 from ..utils.text_preprocessing import preprocess_for_embedding
 

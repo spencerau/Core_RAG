@@ -34,8 +34,8 @@ class UnifiedIngestion:
         self.metadata_extractor = MetadataExtractor()
         self.docstore = get_docstore()
         
-        summary_config = self.config.get('summary', {})
-        self.enable_summaries = summary_config.get('enable_summary_gating', False)
+        coll_cfg = self.config.get('collection_config', {})
+        self.enable_summaries = any(v.get('summary_enabled', False) for v in coll_cfg.values())
         if self.enable_summaries and LLAMAINDEX_AVAILABLE and SummaryIndexer:
             try:
                 self.summary_indexer = SummaryIndexer(base_dir=base_dir)
@@ -71,11 +71,18 @@ class UnifiedIngestion:
         success = self.file_ingestor.ingest_file(file_path)
         
         if success and self.summary_indexer and file_path.endswith(('.md', '.txt')):
-            try:
-                collection_name = self.collection_name or self.file_ingestor.get_last_used_collection() or list(self.config['qdrant']['collections'].values())[0]
-                self.summary_indexer.index_document(file_path, collection_name)
-            except Exception as e:
-                print(f"Warning: Could not generate summary for {file_path}: {e}")
+            collection_name = self.collection_name or self.file_ingestor.get_last_used_collection() or list(self.config['qdrant']['collections'].values())[0]
+            # Resolve logical key for per-collection config lookup
+            name_to_key = {v: k for k, v in self.config['qdrant']['collections'].items()}
+            collection_key = name_to_key.get(collection_name, collection_name)
+            coll_cfg = self.config.get('collection_config', {})
+            per_cfg = coll_cfg.get(collection_key, {})
+            # Default: generate summary if no collection_config section exists at all
+            if per_cfg.get('summary_enabled', not coll_cfg):
+                try:
+                    self.summary_indexer.index_document(file_path, collection_name)
+                except Exception as e:
+                    print(f"Warning: Could not generate summary for {file_path}: {e}")
         
         return success
     

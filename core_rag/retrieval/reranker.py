@@ -20,7 +20,7 @@ class BGEReranker:
     def _initialize_model(self):
         if self.use_ollama:
             try:
-                from utils.ollama_api import get_ollama_api
+                from ..utils.llm_api import get_ollama_api
                 self.ollama_api = get_ollama_api()
                 print(f"Using Ollama reranker: {self.model_name}")
             except Exception as e:
@@ -61,34 +61,14 @@ class BGEReranker:
         return reranked_docs[:top_k]
     
     def _rerank_with_ollama(self, query: str, documents: List[Dict]) -> List[float]:
-        scores = []
-        
-        for doc in documents:
-            text = doc.get('text', '')
-            
-            try:
-                combined_text = f"Query: {query}\nDocument: {text}"
-                embedding = self.ollama_api.get_embeddings(self.model_name, combined_text)
-                
-                if embedding:
-                    import numpy as np
-                    embedding_array = np.array(embedding)
-                    
-                    if len(embedding_array) > 0:
-                        score = float(embedding_array[0])
-                        score = 1 / (1 + math.exp(-score))
-                    else:
-                        score = 0.0
-                else:
-                    score = self._calculate_simple_relevance(query, text)
-                    
-            except Exception as e:
-                print(f"Ollama reranking failed for document: {e}")
-                score = self._calculate_simple_relevance(query, text)
-            
-            scores.append(score)
-        
-        return scores
+        texts = [doc.get('text', '') for doc in documents]
+        try:
+            scores = self.ollama_api.rerank(self.model_name, query, texts)
+            if len(scores) == len(documents):
+                return scores
+        except Exception as e:
+            print(f"Ollama reranking failed: {e}")
+        return [self._calculate_simple_relevance(query, t) for t in texts]
     
     def _rerank_with_model(self, query: str, documents: List[Dict]) -> List[float]:
         pairs = [[query, doc.get('text', '')] for doc in documents]

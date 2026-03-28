@@ -1,8 +1,10 @@
+backend: ollama  # options: ollama, vllm, mlx
+
 embedding:
   model: qwen3-embedding
-  ollama_host: localhost
-  # ollama_host: 192.168.200.110
-  ollama_port: 10001
+  host: localhost
+  # host: 192.168.200.110
+  port: 11434
   dimensions: 4096  # qwen3-embedding output dimension
   batch_size: 32
   timeout: 120
@@ -12,7 +14,14 @@ embedding:
   #With batch_size: 8 and rate_limit_delay: 1.0, when you have a document with 10 chunks, it will:
   #Process chunks 1-8 (with 1 second delay between each = 8 seconds)
   #Process chunks 9-10 (2 more seconds)
-  rate_limit_delay: 2.0  # 2 seconds between requests
+  rate_limit_delay: 1.0
+
+reranker:
+  model: BAAI/bge-reranker-v2-m3 # ollama doesnt support reranking so just using HF 
+  top_k_rerank: 12
+  batch_size: 32
+  max_candidates_for_rerank: 200
+  activation: sigmoid
 
 llm:
   primary_model: qwen3.5:35b
@@ -21,10 +30,21 @@ llm:
   max_tokens: 20000
   timeout: 300
   system_prompt: "This is just a test for the core rag pipeline. Answer questions based on the provided (rag) context"
-  router_host: localhost
-  # router_host: 192.168.200.110
-  router_port: 10002
-  router_model: qwen3.5:9b
-  router_temperature: 0.1
-  router_max_tokens: 500
-  router_timeout: 210
+
+intermediate_llm:
+  host: localhost
+  # host: 192.168.200.110
+  port: 11434
+  model: qwen3.5:4b
+  temperature: 0.1
+  max_tokens: 5000
+  timeout: 210
+  think: true
+  # Sampling params to reduce overthinking in thinking models (recommendations for qwen3.5):
+  # Ollama uses repeat_penalty instead of repetition_penalty
+  sampling:
+    top_p: 0.95
+    top_k: 20
+    min_p: 0.0
+    presence_penalty: 1.5
+    repeat_penalty: 1.0

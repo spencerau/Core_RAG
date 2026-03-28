@@ -1,14 +1,15 @@
 import pytest
 from core_rag.ingestion.ingest import UnifiedIngestion
 from core_rag.utils.doc_id import generate_doc_id, get_normalized_path
-from qdrant_client import QdrantClient
+
+COLLECTIONS = ["job_coaching", "major_catalogs", "recipes"]
 
 
 @pytest.fixture(scope="module")
 def ingestion():
-    """Create an ingestion instance once per test module"""
+    """Create an ingestion instance, wipe all existing collections, then recreate them."""
     ing = UnifiedIngestion(base_dir="data")
-    
+
     try:
         all_collections = ing.client.get_collections().collections
         for collection in all_collections:
@@ -19,184 +20,220 @@ def ingestion():
                 print(f"Could not delete {collection.name}: {e}")
     except Exception as e:
         print(f"Warning: Could not list collections: {e}")
-    
+
     try:
         ing._ensure_collections_exist()
         ing.docstore._ensure_collection()
-        
         if ing.summary_indexer:
             ing.summary_indexer._ensure_summary_collections()
     except Exception as e:
         print(f"Warning: Could not create collections: {e}")
-    
+
     return ing
 
 
+# ---------------------------------------------------------------------------
+# Initialization
+# ---------------------------------------------------------------------------
+
 def test_ingestion_initialization(ingestion):
-    """Test that ingestion initializes properly"""
     assert ingestion is not None
     assert ingestion.config is not None
     assert ingestion.client is not None
     assert ingestion.embedding_gen is not None
 
 
+# ---------------------------------------------------------------------------
+# doc_id helpers
+# ---------------------------------------------------------------------------
+
 def test_doc_id_generation_consistency():
-    """Test that doc_id generation is consistent with the same base_dir"""
+    """doc_id must be stable for the same file+base_dir and differ when base_dir changes."""
     base_dir = "data"
-    file_path1 = "data/main_collection/krabby_patty_instructions.md"
-    file_path2 = "data/main_collection_2/PDF Powerpoint.PDF The Art of Job Coaching.md"
-    
-    doc_id1 = generate_doc_id(file_path1, base_dir)
-    doc_id2 = generate_doc_id(file_path1, base_dir)
-    assert doc_id1 == doc_id2, "Same file with same base_dir should generate same doc_id"
-    
-    normalized_path1 = get_normalized_path(file_path1, base_dir)
-    assert normalized_path1 == "main_collection/krabby_patty_instructions.md"
-    
-    normalized_path2 = get_normalized_path(file_path2, base_dir)
-    assert normalized_path2 == "main_collection_2/PDF Powerpoint.PDF The Art of Job Coaching.md"
-    
-    doc_id3 = generate_doc_id(file_path1, None)
-    assert doc_id1 != doc_id3, "Different base_dir should generate different doc_id"
-    
-    print(f"doc_id generation is consistent")
+    file_path_a = "data/recipes/krabby_patty_instructions.md"
+    file_path_b = "data/job_coaching/art_of_job_coaching.md"
+    file_path_c = "data/major_catalogs/2025_cs.md"
+
+    # Same path → same id
+    assert generate_doc_id(file_path_a, base_dir) == generate_doc_id(file_path_a, base_dir)
+
+    # Normalized paths strip the base prefix
+    assert get_normalized_path(file_path_a, base_dir) == "recipes/krabby_patty_instructions.md"
+    assert get_normalized_path(file_path_b, base_dir) == "job_coaching/art_of_job_coaching.md"
+    assert get_normalized_path(file_path_c, base_dir) == "major_catalogs/2025_cs.md"
+
+    # Different base_dir → different id
+    assert generate_doc_id(file_path_a, base_dir) != generate_doc_id(file_path_a, None)
+
+    print("doc_id generation is consistent")
 
 
+def test_doc_ids_differ_across_collections():
+    """Files in different collections should always get different doc_ids."""
+    base_dir = "data"
+    ids = [
+        generate_doc_id(f"data/{col}/sample.md", base_dir)
+        for col in COLLECTIONS
+    ]
+    assert len(ids) == len(set(ids)), "doc_ids should be unique across collections"
+    print("doc_ids are unique across collections")
+
+
+# ---------------------------------------------------------------------------
+# Ingestion
+# ---------------------------------------------------------------------------
 
 def test_ingest_directory(ingestion):
-    """Test ingesting documents from multiple directories into different collections"""
-    result1 = ingestion.ingest_directory("data/main_collection")
-    
-    assert result1 is not None
-    assert 'total_files' in result1
-    assert 'success_files' in result1
-    assert result1['total_files'] > 0
-    assert result1['success_files'] > 0
-    if 'total_chunks' in result1 and result1['total_chunks'] > 0:
-        assert result1['ingested_chunks'] == result1['total_chunks'], \
-            f"Only {result1['ingested_chunks']} out of {result1['total_chunks']} chunks were ingested"
-    
-    result2 = ingestion.ingest_directory("data/main_collection_2")
-    
-    assert result2 is not None
-    assert 'total_files' in result2
-    assert 'success_files' in result2
-    assert result2['total_files'] > 0
-    assert result2['success_files'] > 0
-    if 'total_chunks' in result2 and result2['total_chunks'] > 0:
-        assert result2['ingested_chunks'] == result2['total_chunks'], \
-            f"Only {result2['ingested_chunks']} out of {result2['total_chunks']} chunks were ingested"
-    
+    """Ingest all three collections and verify every chunk was stored."""
+    for collection in COLLECTIONS:
+        result = ingestion.ingest_directory(f"data/{collection}")
+
+        assert result is not None, f"No result returned for {collection}"
+        assert result.get('total_files', 0) > 0, f"No files found in data/{collection}"
+        assert result.get('success_files', 0) > 0, f"No files successfully ingested from data/{collection}"
+
+        total = result.get('total_chunks', 0)
+        ingested = result.get('ingested_chunks', 0)
+        if total > 0:
+            assert ingested == total, \
+                f"{collection}: only {ingested}/{total} chunks ingested"
+
+        print(f"\n{collection}: {result['success_files']} file(s), {ingested} chunk(s)")
+
     if ingestion.summary_indexer:
         print("\nRegenerating summaries after ingestion...")
-        ingestion.summary_indexer.index_directory("data/main_collection", "main_collection", [".md", ".pdf"])
-        ingestion.summary_indexer.index_directory("data/main_collection_2", "main_collection_2", [".md", ".pdf"])
+        coll_cfg = ingestion.config.get('collection_config', {})
+        summary_collections = [c for c in COLLECTIONS if coll_cfg.get(c, {}).get('summary_enabled', False)]
+        for collection in summary_collections:
+            ingestion.summary_indexer.index_directory(
+                f"data/{collection}", collection, [".md", ".pdf"]
+            )
 
 
 def test_collection_has_documents(ingestion):
-    info1 = ingestion.client.get_collection("main_collection")
-    assert info1.points_count > 0
-    print(f"\nCollection 'main_collection' has {info1.points_count} chunks")
-    
-    info2 = ingestion.client.get_collection("main_collection_2")
-    assert info2.points_count > 0
-    print(f"Collection 'main_collection_2' has {info2.points_count} chunks")
+    """Every collection must be non-empty after ingestion."""
+    for collection in COLLECTIONS:
+        info = ingestion.client.get_collection(collection)
+        assert info.points_count > 0, f"Collection '{collection}' is empty after ingestion"
+        print(f"\n✓ '{collection}': {info.points_count} chunks")
 
+
+def test_collections_have_distinct_content(ingestion):
+    """Verify each collection holds different documents (no cross-contamination)."""
+    all_doc_ids = {}
+    for collection in COLLECTIONS:
+        points, _ = ingestion.client.scroll(
+            collection_name=collection, limit=100, with_payload=True
+        )
+        doc_ids = {p.payload.get('doc_id') for p in points if p.payload.get('doc_id')}
+        assert len(doc_ids) > 0, f"No doc_ids found in {collection}"
+        all_doc_ids[collection] = doc_ids
+
+    # No doc_id should appear in more than one collection
+    for i, col_a in enumerate(COLLECTIONS):
+        for col_b in COLLECTIONS[i + 1:]:
+            overlap = all_doc_ids[col_a] & all_doc_ids[col_b]
+            assert not overlap, \
+                f"doc_ids appear in both {col_a} and {col_b}: {overlap}"
+
+    print("\nCollections contain distinct documents")
+
+
+# ---------------------------------------------------------------------------
+# Docstore consistency
+# ---------------------------------------------------------------------------
 
 def test_doc_id_consistency_between_chunks_and_docstore(ingestion):
-    """Test that doc_ids in chunks match doc_ids in docstore"""
-    client = ingestion.client
-    docstore = ingestion.docstore
-    
-    for collection_name in ["main_collection", "main_collection_2"]:
-        points = client.scroll(collection_name=collection_name, limit=10, with_payload=True)
-        
-        doc_ids_from_chunks = set()
-        for point in points[0]:
+    """Every doc_id referenced by a chunk must exist in the docstore."""
+    for collection in COLLECTIONS:
+        points, _ = ingestion.client.scroll(
+            collection_name=collection, limit=10, with_payload=True
+        )
+        doc_ids = set()
+        for point in points:
             doc_id = point.payload.get('doc_id')
-            assert doc_id is not None, f"Chunk missing doc_id in {collection_name}"
-            doc_ids_from_chunks.add(doc_id)
-        
-        for doc_id in doc_ids_from_chunks:
-            doc = docstore.get(doc_id)
-            assert doc is not None, f"doc_id {doc_id} from {collection_name} not found in docstore"
-            assert 'text' in doc, f"Document {doc_id} in docstore missing text field"
-            assert len(doc['text']) > 0, f"Document {doc_id} in docstore has empty text"
-        
-        print(f"All {len(doc_ids_from_chunks)} doc_ids from {collection_name} exist in docstore")
+            assert doc_id is not None, f"Chunk missing doc_id in {collection}"
+            doc_ids.add(doc_id)
+
+        for doc_id in doc_ids:
+            doc = ingestion.docstore.get(doc_id)
+            assert doc is not None, f"doc_id {doc_id} from {collection} not found in docstore"
+            assert doc.get('text'), f"Document {doc_id} in docstore has empty text"
+
+        print(f"{len(doc_ids)} doc_ids from {collection} verified in docstore")
 
 
 def test_doc_id_consistency_between_summaries_and_docstore(ingestion):
-    """Test that doc_ids in summary collections match doc_ids in docstore"""
+    """Every doc_id referenced by a summary must exist in the docstore."""
     if not ingestion.summary_indexer:
         pytest.skip("Summary indexer not available")
-    
-    client = ingestion.client
-    docstore = ingestion.docstore
-    
-    for collection_name in ["main_collection", "main_collection_2"]:
-        summary_collection = f"{collection_name}_summaries"
-        
+
+    coll_cfg = ingestion.config.get('collection_config', {})
+    summary_collections = [c for c in COLLECTIONS if coll_cfg.get(c, {}).get('summary_enabled', False)]
+    if not summary_collections:
+        pytest.skip("No collections have summary_enabled: true")
+
+    for collection in summary_collections:
+        summary_collection = f"{collection}_summaries"
         try:
-            summary_points = client.scroll(collection_name=summary_collection, limit=10, with_payload=True)
+            points, _ = ingestion.client.scroll(
+                collection_name=summary_collection, limit=10, with_payload=True
+            )
         except Exception as e:
             pytest.skip(f"Summary collection {summary_collection} not available: {e}")
-            continue
-        
-        doc_ids_from_summaries = set()
-        for point in summary_points[0]:
+
+        doc_ids = set()
+        for point in points:
             doc_id = point.payload.get('doc_id')
             assert doc_id is not None, f"Summary missing doc_id in {summary_collection}"
-            doc_ids_from_summaries.add(doc_id)
-        
-        for doc_id in doc_ids_from_summaries:
-            doc = docstore.get(doc_id)
+            doc_ids.add(doc_id)
+
+        for doc_id in doc_ids:
+            doc = ingestion.docstore.get(doc_id)
             assert doc is not None, f"doc_id {doc_id} from {summary_collection} not found in docstore"
-            assert 'text' in doc, f"Document {doc_id} in docstore missing text field"
-            assert len(doc['text']) > 0, f"Document {doc_id} in docstore has empty text"
-        
-        print(f"All {len(doc_ids_from_summaries)} doc_ids from {summary_collection} exist in docstore")
+            assert doc.get('text'), f"Document {doc_id} in docstore has empty text"
+
+        print(f"{len(doc_ids)} doc_ids from {summary_collection} verified in docstore")
 
 
-def test_doc_id_consistency_across_all_three(ingestion):
-    """Test that the same document has the same doc_id in chunks, summaries, and docstore"""
+def test_doc_id_consistency_across_chunks_summaries_docstore(ingestion):
+    """The same source file must have the same doc_id in chunks, summaries, and docstore."""
     if not ingestion.summary_indexer:
         pytest.skip("Summary indexer not available")
-    
-    client = ingestion.client
-    docstore = ingestion.docstore
-    
-    for collection_name in ["main_collection", "main_collection_2"]:
-        summary_collection = f"{collection_name}_summaries"
-        
+
+    coll_cfg = ingestion.config.get('collection_config', {})
+    summary_collections = [c for c in COLLECTIONS if coll_cfg.get(c, {}).get('summary_enabled', False)]
+    if not summary_collections:
+        pytest.skip("No collections have summary_enabled: true")
+
+    for collection in summary_collections:
+        summary_collection = f"{collection}_summaries"
         try:
-            chunk_points = client.scroll(collection_name=collection_name, limit=10, with_payload=True)
-            summary_points = client.scroll(collection_name=summary_collection, limit=10, with_payload=True)
+            chunk_points, _ = ingestion.client.scroll(
+                collection_name=collection, limit=10, with_payload=True
+            )
+            summary_points, _ = ingestion.client.scroll(
+                collection_name=summary_collection, limit=10, with_payload=True
+            )
         except Exception as e:
             pytest.skip(f"Collections not available: {e}")
-            continue
-        
-        doc_ids_from_chunks = {}
-        for point in chunk_points[0]:
-            doc_id = point.payload.get('doc_id')
-            source_path = point.payload.get('source_path')
-            if source_path:
-                doc_ids_from_chunks[source_path] = doc_id
-        
-        doc_ids_from_summaries = {}
-        for point in summary_points[0]:
-            doc_id = point.payload.get('doc_id')
-            source_path = point.payload.get('source_path')
-            if source_path:
-                doc_ids_from_summaries[source_path] = doc_id
-        
-        for source_path, chunk_doc_id in doc_ids_from_chunks.items():
-            if source_path in doc_ids_from_summaries:
-                summary_doc_id = doc_ids_from_summaries[source_path]
-                assert chunk_doc_id == summary_doc_id, \
-                    f"doc_id mismatch for {source_path}: chunk={chunk_doc_id}, summary={summary_doc_id}"
-                
-                doc = docstore.get(chunk_doc_id)
-                assert doc is not None, f"doc_id {chunk_doc_id} not found in docstore"
-        
-        print(f"doc_ids are consistent across chunks, summaries, and docstore for {collection_name}")
+
+        chunks_by_path = {
+            p.payload['source_path']: p.payload['doc_id']
+            for p in chunk_points
+            if p.payload.get('source_path') and p.payload.get('doc_id')
+        }
+        summaries_by_path = {
+            p.payload['source_path']: p.payload['doc_id']
+            for p in summary_points
+            if p.payload.get('source_path') and p.payload.get('doc_id')
+        }
+
+        for source_path, chunk_doc_id in chunks_by_path.items():
+            if source_path in summaries_by_path:
+                assert chunk_doc_id == summaries_by_path[source_path], \
+                    f"doc_id mismatch for {source_path}: chunk={chunk_doc_id}, summary={summaries_by_path[source_path]}"
+                assert ingestion.docstore.get(chunk_doc_id) is not None, \
+                    f"doc_id {chunk_doc_id} not found in docstore"
+
+        print(f"{collection}: doc_ids consistent across chunks, summaries, and docstore")

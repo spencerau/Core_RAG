@@ -3,7 +3,7 @@ services:
     image: qdrant/qdrant
     container_name: qdrant-local
     ports:
-      - "6333:6333"
+      - "${QDRANT_PORT:-1000}:6333"
     volumes:
       - qdrant_data:/qdrant/storage
     restart: unless-stopped
@@ -16,7 +16,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB:       ${POSTGRES_DB:-core_rag}
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "${POSTGRES_PORT:-2000}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./scripts/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro

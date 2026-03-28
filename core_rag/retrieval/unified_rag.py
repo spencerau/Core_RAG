@@ -2,7 +2,7 @@ import os
 from typing import Any, Dict, List
 from qdrant_client import QdrantClient
 from ..utils.config_loader import load_config
-from ..utils.ollama_api import get_ollama_api
+from ..utils.llm_api import get_ollama_api
 from ..utils.docstore import get_docstore
 from .bm25 import BM25Retriever
 from .reranker import BGEReranker
@@ -37,7 +37,8 @@ class UnifiedRAG:
         self.rerank_disabled = os.getenv('RERANK_DISABLED', 'false').lower() == 'true'
         
         summary_cfg = self.config.get('summary', {})
-        self.enable_summary_gating = summary_cfg.get('enable_summary_gating', False)
+        coll_cfg = self.config.get('collection_config', {})
+        self.enable_summary_gating = any(v.get('summary_enabled', False) for v in coll_cfg.values())
         self.summary_top_n = summary_cfg.get('summary_top_n', 5)
         self.return_parent_docs = summary_cfg.get('return_parent_docs', False)
         
@@ -70,8 +71,8 @@ class UnifiedRAG:
                 print(f"Warning: Query router disabled: {QUERY_ROUTER_IMPORT_ERROR}")
             return
         try:
-            from utils.ollama_api import get_intermediate_ollama_api
-            router_timeout = self.config.get('llm', {}).get('router_timeout', 120)
+            from ..utils.llm_api import get_intermediate_ollama_api
+            router_timeout = self.config.get('intermediate_llm', {}).get('timeout', 120)
             self.query_router = QueryRouter(get_intermediate_ollama_api(timeout=router_timeout))
             print("Query router initialized")
         except Exception as e:
