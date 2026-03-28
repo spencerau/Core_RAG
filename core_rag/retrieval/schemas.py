@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import List
+from typing import List, Optional
 
 
 class RouterOutput(BaseModel):
@@ -13,12 +13,12 @@ class RouterOutput(BaseModel):
         le=2000,
         description="Number of tokens to allocate for the LLM response"
     )
-    reasoning: str = Field(
-        ...,
+    reasoning: Optional[str] = Field(
+        default=None,
         description="Brief explanation of the routing decision"
     )
-    confidence: float = Field(
-        ...,
+    confidence: Optional[float] = Field(
+        default=None,
         ge=0.0,
         le=1.0,
         description="Confidence score for the routing decision (0.0 to 1.0)"
