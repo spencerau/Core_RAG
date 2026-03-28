@@ -54,7 +54,8 @@ class UnifiedRAG:
         self.answer_gen = AnswerGenerator(self.config, self.search_engine, self.llm_handler,
                                           self._get_reranker, self.query_router, self.summary_retriever,
                                           self.docstore, self.enable_summary_gating, self.summary_top_n,
-                                          self.return_parent_docs, self.rerank_disabled)
+                                          self.return_parent_docs, self.rerank_disabled,
+                                          search_fn=self.search_collection)
     
     def _init_bm25(self):
         self.bm25_retriever = None

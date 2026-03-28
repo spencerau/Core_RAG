@@ -1,4 +1,4 @@
-from typing import Any, Dict, List
+from typing import Any, Callable, Dict, List, Optional
 from .context_formatter import format_context, build_prompt, chunks_to_context_docs, parent_docs_to_context
 
 
@@ -6,7 +6,8 @@ class AnswerGenerator:
     def __init__(self, config: dict, search_engine, llm_handler, reranker_getter,
                  query_router=None, summary_retriever=None, docstore=None,
                  enable_summary_gating: bool = False, summary_top_n: int = 5,
-                 return_parent_docs: bool = False, rerank_disabled: bool = False):
+                 return_parent_docs: bool = False, rerank_disabled: bool = False,
+                 search_fn: Optional[Callable] = None):
         self.config = config
         self.search_engine = search_engine
         self.llm_handler = llm_handler
@@ -18,6 +19,7 @@ class AnswerGenerator:
         self.summary_top_n = summary_top_n
         self.return_parent_docs = return_parent_docs
         self.rerank_disabled = rerank_disabled
+        self.search_fn = search_fn
         self.collections = search_engine.collections
 
     def answer_question(self, query: str, conversation_history: List[Dict] = None,
@@ -60,10 +62,16 @@ class AnswerGenerator:
         # 2. Standard collections: chunk-based search
         if standard_cols:
             alloc = self._chunk_allocation(standard_cols)
-            chunk_results = self.search_engine.search_multiple_collections(
-                query, standard_cols, user_context,
-                chunk_allocation=alloc, collection_cfg=coll_cfg
-            )
+            if self.search_fn:
+                chunk_results = []
+                for coll in standard_cols:
+                    top_k_coll = alloc.get(coll, self.config.get('rag', {}).get('base_chunks_per_collection', 8))
+                    chunk_results.extend(self.search_fn(query, coll, user_context, top_k_coll))
+            else:
+                chunk_results = self.search_engine.search_multiple_collections(
+                    query, standard_cols, user_context,
+                    chunk_allocation=alloc, collection_cfg=coll_cfg
+                )
             all_results.extend(chunk_results)
 
         debug['total_results'] = len(all_results)
