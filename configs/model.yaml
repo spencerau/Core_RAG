@@ -26,8 +26,9 @@ reranker:
 llm:
   primary_model: qwen3.5:35b
   temperature: 0.1
-  num_ctx: 256000
   max_tokens: 20000
+  num_ctx: 256000
+  thinking_budget: 6000
   timeout: 300
   system_prompt: "This is just a test for the core rag pipeline. Answer questions based on the provided (rag) context"
 

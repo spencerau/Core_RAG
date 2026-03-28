@@ -14,6 +14,7 @@ class LLMHandler:
         messages.append({'role': 'user', 'content': prompt})
         try:
             options = {'temperature': self.config['llm']['temperature'], 'num_predict': tokens}
+            options['num_predict'] += self.config['llm'].get('thinking_budget', 0)
             if 'num_ctx' in self.config['llm']:
                 options['num_ctx'] = self.config['llm']['num_ctx']
             resp = self.ollama_api.chat(
@@ -33,6 +34,7 @@ class LLMHandler:
         messages.append({'role': 'user', 'content': prompt})
         try:
             options = {'temperature': self.config['llm']['temperature'], 'num_predict': tokens}
+            options['num_predict'] += self.config['llm'].get('thinking_budget', 0)
             if 'num_ctx' in self.config['llm']:
                 options['num_ctx'] = self.config['llm']['num_ctx']
             for chunk in self.ollama_api.chat(
