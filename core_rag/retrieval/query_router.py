@@ -135,14 +135,13 @@ class QueryRouter:
             if not response or not response.strip():
                 return RouterOutput(
                     collections=default_collections,
-                    token_allocation=min(llm_config.get('max_tokens', 2000), 2000),
+                    token_allocation=min(int_llm_config.get('max_tokens', 2000), 2000),
                     reasoning='Empty response from router LLM',
                     confidence=0.0
                 ).model_dump()
 
             result = RouterOutput.model_validate_json(response)
 
-            # Clamp token allocation to configured range and filter invalid collections
             clamped_tokens = max(min_tokens, min(result.token_allocation, max_tokens))
             valid_collections = [c for c in result.collections if c in collection_descriptions]
             if not valid_collections:
@@ -159,7 +158,7 @@ class QueryRouter:
             print(f"LLM routing error: {e}")
             return RouterOutput(
                 collections=default_collections,
-                token_allocation=min(llm_config.get('max_tokens', 2000), 2000),
+                token_allocation=min(int_llm_config.get('max_tokens', 2000), 2000),
                 reasoning=f'Error: {str(e)}',
                 confidence=0.0
             ).model_dump()
