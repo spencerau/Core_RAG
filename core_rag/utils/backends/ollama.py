@@ -125,6 +125,7 @@ class OllamaBackend(BaseLLMBackend):
         except requests.exceptions.HTTPError as e:
             print(f"Error in chat completion: {e}")
             print(f"Response: {e.response.text if hasattr(e, 'response') else 'No response'}")
+            return ""
         except Exception as e:
             print(f"Error in chat completion: {e}")
             return ""
