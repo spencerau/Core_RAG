@@ -18,16 +18,24 @@ class OpenAICompatBackend(BaseLLMBackend):
         embedding.host / port  ← reused as base URL
     """
 
-    def __init__(self, base_url: str = None, timeout: int = 300, config: dict = None):
+    def __init__(self, base_url: str = None, timeout: int = 300, config: dict = None,
+                 backend_name: str = 'vllm'):
         if config is None:
             config = load_config()
+
+        self.backend_name = backend_name
 
         if base_url:
             self.base_url = base_url
         else:
-            embedding_config = config.get('embedding', {})
-            host = embedding_config.get('host', 'localhost')
-            port = embedding_config.get('port', 11434)
+            llm_config = config.get('llm', {})
+            if 'host' in llm_config and 'port' in llm_config:
+                host = llm_config['host']
+                port = llm_config['port']
+            else:
+                embedding_config = config.get('embedding', {})
+                host = embedding_config.get('host', 'localhost')
+                port = embedding_config.get('port', 11434)
             self.base_url = f"http://{host}:{port}"
 
         self.timeout = timeout
@@ -165,7 +173,6 @@ class OpenAICompatBackend(BaseLLMBackend):
                     if not token:
                         continue
 
-                    # Route tokens into thinking vs content buckets
                     while token:
                         if not in_thinking:
                             think_start = token.find('<think>')
@@ -248,13 +255,24 @@ class OpenAICompatBackend(BaseLLMBackend):
             payload['max_tokens'] = options['num_predict']
         if 'temperature' in options:
             payload['temperature'] = options['temperature']
+        if 'top_p' in options:
+            payload['top_p'] = options['top_p']
+        if 'presence_penalty' in options:
+            payload['presence_penalty'] = options['presence_penalty']
+        if 'repeat_penalty' in options:
+            payload['repetition_penalty'] = options['repeat_penalty']
 
-        # Structured output: Ollama uses format={schema}, vLLM uses guided_json
+        # Structured output: vLLM uses guided_json; mlx-lm uses standard response_format
         fmt = kwargs.pop('format', None)
         if fmt and isinstance(fmt, dict):
-            payload.setdefault('extra_body', {})['guided_json'] = fmt
+            if self.backend_name == 'vllm':
+                payload.setdefault('extra_body', {})['guided_json'] = fmt
+            else:
+                payload['response_format'] = {
+                    'type': 'json_schema',
+                    'json_schema': {'name': 'output', 'strict': False, 'schema': fmt}
+                }
 
-        # Pass through any remaining standard OpenAI kwargs
         payload.update(kwargs)
         return payload
 

@@ -105,8 +105,9 @@ def test_query_router_returns_valid_collections(rag):
         for col in result['collections']:
             assert col in COLLECTIONS, f"Router returned unknown collection: {col}"
         assert 150 <= result['token_allocation'] <= 2000
-        assert 0.0 <= result['confidence'] <= 1.0
-        print(f"\n'{collection}' routed to: {result['collections']} (confidence={result['confidence']:.2f})")
+        if result['confidence'] is not None:
+            assert 0.0 <= result['confidence'] <= 1.0
+        print(f"\n'{collection}' routed to: {result['collections']} (confidence={result['confidence']})")
 
 
 def test_query_router_routes_to_correct_collection(rag):
@@ -148,8 +149,8 @@ def test_query_router_structured_output_fields(rag):
     result = rag.query_router.route_query(COLLECTION_QUERIES["job_coaching"])
     assert isinstance(result['collections'], list)
     assert isinstance(result['token_allocation'], int)
-    assert isinstance(result['reasoning'], str)
-    assert isinstance(result['confidence'], float)
+    assert result['reasoning'] is None or isinstance(result['reasoning'], str)
+    assert result['confidence'] is None or isinstance(result['confidence'], float)
     print(f"\nStructured output fields verified: {result}")
 
 

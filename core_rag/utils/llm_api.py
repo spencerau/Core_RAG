@@ -4,6 +4,7 @@ from typing import Dict, Iterator, List, Optional
 from .config_loader import load_config
 from .backends import get_backend
 from .backends.base import BaseLLMBackend
+from .backends.ollama import OllamaBackend
 
 
 class OllamaAPI:
@@ -14,14 +15,24 @@ class OllamaAPI:
     Switch backends in model.yaml:
         backend: ollama   # default, Ollama on localhost
         backend: vllm     # OpenAI-compatible (vLLM, mlx_lm, etc.)
+
+    Embeddings always use OllamaBackend regardless of the configured backend,
+    since mlx-lm / vLLM do not serve /v1/embeddings for the embedding model.
     """
 
     def __init__(self, base_url: str = None, timeout: int = 300):
         config = load_config()
         self._backend: BaseLLMBackend = get_backend(config, base_url=base_url, timeout=timeout)
 
+        # Embeddings always go to Ollama (embedding.host/port)
+        embedding_cfg = config.get('embedding', {})
+        emb_host = embedding_cfg.get('host', 'localhost')
+        emb_port = embedding_cfg.get('port', 11434)
+        emb_url = f"http://{emb_host}:{emb_port}"
+        self._embedding_backend: OllamaBackend = OllamaBackend(base_url=emb_url, timeout=timeout)
+
     def get_embeddings(self, model: str, prompt: str, keep_alive: str = None) -> List[float]:
-        return self._backend.get_embeddings(model, prompt, keep_alive=keep_alive)
+        return self._embedding_backend.get_embeddings(model, prompt, keep_alive=keep_alive)
 
     def chat(self, model: str, messages: List[Dict], stream: bool = True,
              think: Optional[bool] = None, hide_thinking: bool = False,

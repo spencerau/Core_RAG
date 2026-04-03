@@ -1,4 +1,4 @@
-backend: ollama  # options: ollama, vllm, mlx
+backend: mlx  # options: ollama, vllm, mlx
 
 embedding:
   model: qwen3-embedding
@@ -24,10 +24,14 @@ reranker:
   activation: sigmoid
 
 llm:
-  primary_model: qwen3.5:35b
+  host: localhost
+  port: 8080
+  #primary_model: qwen3.5:35b
+  # primary_model: Jackrong/Qwen3.5-27B-Claude-4.6-Opus-Reasoning-Distilled
+  primary_model: Jackrong/Qwen3.5-35B-A3B-Claude-4.6-Opus-Reasoning-Distilled
   temperature: 0.1
   max_tokens: 20000
-  num_ctx: 256000
+  num_ctx: 128000
   thinking_budget: 6000
   timeout: 300
   system_prompt: "This is just a test for the core rag pipeline. Answer questions based on the provided (rag) context"
@@ -35,10 +39,11 @@ llm:
 intermediate_llm:
   host: localhost
   # host: 192.168.200.110
-  port: 11434
-  model: qwen3.5:4b
+  port: 8081
+  #model: qwen3.5:4b
+  model: Jackrong/Qwen3.5-9B-Claude-4.6-Opus-Reasoning-Distilled
   temperature: 0.1
-  max_tokens: 5000
+  max_tokens: 3500
   timeout: 210
   think: true
   # Sampling params to reduce overthinking in thinking models (recommendations for qwen3.5):
@@ -48,4 +53,4 @@ intermediate_llm:
     top_k: 20
     min_p: 0.0
     presence_penalty: 1.5
-    repeat_penalty: 1.0
+    repeat_penalty: 1.15

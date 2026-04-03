@@ -10,7 +10,7 @@ class RouterOutput(BaseModel):
     token_allocation: int = Field(
         ...,
         ge=150,
-        le=2000,
+        le=15000,
         description="Number of tokens to allocate for the LLM response"
     )
     reasoning: Optional[str] = Field(

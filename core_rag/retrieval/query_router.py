@@ -1,9 +1,12 @@
 from typing import List, Dict
+import logging
 import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from ..utils.config_loader import load_config
 from .schemas import RouterOutput
+
+logger = logging.getLogger(__name__)
 
 
 class QueryRouter:
@@ -140,6 +143,12 @@ class QueryRouter:
                     confidence=0.0
                 ).model_dump()
 
+            stripped = response.strip()
+            if stripped.startswith('```'):
+                stripped = stripped.split('\n', 1)[-1]
+                stripped = stripped.rsplit('```', 1)[0].strip()
+            response = stripped
+
             result = RouterOutput.model_validate_json(response)
 
             clamped_tokens = max(min_tokens, min(result.token_allocation, max_tokens))
@@ -155,7 +164,7 @@ class QueryRouter:
             ).model_dump()
 
         except Exception as e:
-            print(f"LLM routing error: {e}")
+            logger.error(f"LLM routing error: {e}")
             return RouterOutput(
                 collections=default_collections,
                 token_allocation=min(int_llm_config.get('max_tokens', 2000), 2000),
